@@ -1,0 +1,63 @@
+{
+  "name": "starlit-lottery",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.14.1 <25"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "db:start": "node scripts/db-start.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "build": "npm run build --workspace @starlit/api && npm run build --workspace @starlit/web",
+    "check": "npm run check --workspaces --if-present",
+    "test": "npm run build --workspace @starlit/api && node --test tests/foundation.test.mjs tests/accounts.test.mjs tests/configuration.test.mjs tests/wechat-vault.test.mjs tests/stage-random-layout.test.mjs tests/draw-display.test.mjs tests/production-config.test.mjs tests/matrix-layout.test.mjs tests/portrait-rotation.test.mjs tests/preflight.test.mjs tests/idle-motion.test.mjs tests/star-wave-layout.test.mjs tests/star-wave-effects.test.mjs tests/corridor-layout.test.mjs tests/corridor-robot.test.mjs tests/image-cache.test.mjs tests/waterfall.test.mjs tests/exceljs-compatibility.test.mjs tests/portrait-cache.test.mjs tests/wechat-readiness.test.mjs tests/release-gate.test.mjs",
+    "verify:accounts": "npm run build && node scripts/verify-accounts.mjs",
+    "verify:foundation": "npm run build && node scripts/verify-foundation.mjs",
+    "verify:activities": "npm run build && node scripts/verify-activities.mjs",
+    "verify:roster": "npm run build && node scripts/verify-roster.mjs",
+    "verify:draw": "npm run build && node scripts/verify-draw.mjs",
+    "verify:join": "npm run build && node scripts/verify-join.mjs",
+    "verify:wechat": "npm run build && node scripts/verify-wechat.mjs",
+    "verify:oauth": "npm run build && node scripts/verify-oauth.mjs",
+    "verify:realtime": "npm run build && node scripts/verify-realtime.mjs",
+    "verify:audit": "npm run build && node scripts/verify-audit.mjs",
+    "verify:signup-reset": "node scripts/verify-signup-reset.mjs",
+    "check:production": "node scripts/check-production.mjs",
+    "account:init": "node scripts/account.mjs init",
+    "account:reset-password": "node scripts/account.mjs reset-password",
+    "test:deployment": "node --test tests/deployment.test.mjs",
+    "package:deploy": "node scripts/package-deploy.mjs",
+    "verify:rehearsal-seed": "npm run build --workspace @starlit/api && node scripts/verify-rehearsal-seed.mjs",
+    "verify:review-regressions": "npm run build --workspace @starlit/api && node scripts/verify-review-regressions.mjs",
+    "verify:stage-review": "npm run build --workspace @starlit/api && node scripts/verify-stage-review.mjs",
+    "verify:portrait-cache": "node scripts/verify-portrait-cache.mjs",
+    "verify:wechat-lifecycle": "npm run build --workspace @starlit/api && node scripts/verify-wechat-lifecycle.mjs",
+    "release:check": "node scripts/release.mjs --check",
+    "verify:preflight": "node scripts/verify-preflight.mjs",
+    "verify:async-recovery": "node scripts/verify-async-recovery.mjs",
+    "verify:matrix-portraits": "node scripts/verify-matrix-portrait-loading.mjs",
+    "test:soak-stage": "npm run build && node scripts/soak-stage.mjs",
+    "test:soak-stage:smoke": "npm run build && node scripts/soak-stage.mjs --smoke"
+  },
+  "overrides": {
+    "source-map-js": "1.2.2",
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  },
+  "devDependencies": {
+    "dotenv": "17.2.3",
+    "embedded-postgres": "18.4.0-beta.17",
+    "exceljs": "4.4.0",
+    "pg": "8.16.3",
+    "playwright": "^1.63.0",
+    "qrcode": "^1.5.4",
+    "three": "^0.186.0",
+    "typescript": "5.9.3"
+  }
+}

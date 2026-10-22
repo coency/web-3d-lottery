@@ -1,0 +1,29 @@
+@import "element-plus/theme-chalk/dark/css-vars.css";
+
+html.dark {
+ --el-color-primary:#d1b685;
+ --el-color-primary-light-3:#a38f6d;
+ --el-color-primary-light-5:#796c57;
+ --el-color-primary-light-7:#50493f;
+ --el-color-primary-light-8:#3c3933;
+ --el-color-primary-light-9:#292827;
+ --el-color-primary-dark-2:#dfcaa3;
+ --el-bg-color:#151d2e;
+ --el-bg-color-page:#0d101b;
+ --el-bg-color-overlay:#1b2437;
+ --el-fill-color-blank:#101828;
+ --el-fill-color-light:#253047;
+ --el-fill-color-lighter:#1c263a;
+ --el-text-color-primary:#e8eaf6;
+ --el-text-color-regular:#c4cede;
+ --el-text-color-secondary:#9daac2;
+ --el-border-color:#39445c;
+ --el-border-color-light:#303c51;
+ --el-border-radius-base:8px;
+ --el-font-family:Inter,"Microsoft YaHei",sans-serif;
+}
+html.dark .el-button--primary{--el-button-text-color:#211d25;--el-button-hover-text-color:#211d25;--el-button-active-text-color:#211d25}
+/* Old native button styles must not add padding to calendar/pagination controls. */
+.el-date-picker__header button,.el-pagination button{padding:0}
+
+html.dark .el-pagination.is-background .el-pager li.is-active{color:#211d25}

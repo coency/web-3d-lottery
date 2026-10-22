@@ -1,0 +1,26 @@
+{
+  "name": "@starlit/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "check": "vue-tsc --noEmit",
+    "build": "vue-tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.21.0",
+    "@starlit/contracts": "0.0.0",
+    "element-plus": "2.14.6",
+    "three": "0.186.0",
+    "vue": "3.5.43"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/three": "0.186.0",
+    "@vitejs/plugin-vue": "6.0.9",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.1.4"
+  }
+}

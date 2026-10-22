@@ -1,0 +1,8 @@
+.el-message.starlit-message{max-width:calc(100vw - 32px);width:max-content;min-width:280px;--el-message-padding:14px 40px 14px 18px;box-shadow:0 8px 30px #0004}
+.starlit-message .el-message__content{max-width:640px;overflow-wrap:anywhere;line-height:1.7;font-size:14px}
+.starlit-message .el-message__closeBtn{padding:0;background:none;border:0}
+.starlit-message .el-button{margin-left:8px}
+.starlit-message.el-message--success{--el-message-bg-color:#19312a;--el-message-border-color:#38674e;--el-message-text-color:#a9dfb5}
+.starlit-message.el-message--error{--el-message-bg-color:#3b2531;--el-message-border-color:#ab6778;--el-message-text-color:#ffd3dc}
+.starlit-message.el-message--info{--el-message-bg-color:#1b273d;--el-message-border-color:#45597b;--el-message-text-color:#ccd9f0}
+.starlit-message.el-message--warning{--el-message-bg-color:#342b1e;--el-message-border-color:#887044;--el-message-text-color:#f0d499}

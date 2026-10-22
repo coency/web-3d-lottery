@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><link rel="icon" type="image/svg+xml" href="/favicon.svg"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080817"><title>星遇 · 3D 抽奖舞台</title><link rel="stylesheet" href="./stage/style.css"><link rel="stylesheet" href="./stage/stage-update.css"></head>
+<body>
+<main id="stage">
+  <canvas id="universe" aria-label="由参与者头像组成的三维抽奖场景"></canvas>
+  <div class="vignette"></div>
+  <header>
+    <div class="brand"><span class="brand-symbol">✧</span><div>星遇<span class="brand-en">STARLIT</span></div></div>
+    <div class="event"><h1>正在加载活动</h1><p class="tagline"></p></div>
+    <div class="attendance"><span>已签到人数</span><strong id="joined">0</strong><span class="demo-mark">正在连接活动</span></div>
+  </header>
+  <aside id="prize" class="prize" aria-label="当前奖项"><h2 id="prizeName">加载中</h2><span class="prize-divider">｜</span><p><span id="roundLabel">本轮</span> <strong id="roundCount">5</strong> 人</p><span class="prize-divider">｜</span><p>剩余 <strong id="remaining">20</strong> 人</p></aside>
+  <section id="winners" class="winners" hidden aria-label="本轮中奖结果"><div id="winnerSlots" class="winner-slots"></div><p id="resultNote">按 Enter 进入下一轮</p></section>
+  <div id="stageStatus" class="stage-status" aria-live="polite"></div>
+  <footer><button id="draw" class="draw-button" disabled><span class="button-star">✦</span><span id="drawLabel">开始抽奖</span></button><div class="organizer"></div></footer>
+  <div class="keyboard-hint"><span><kbd>H</kbd> 快捷键</span></div>
+
+</main>
+<dialog id="qrDialog"><h2 id="qrTitle" tabindex="-1" autofocus>签到二维码暂未开放</h2><p>正在加载签到二维码…</p><small class="muted">Q / Esc 关闭</small></dialog>
+<dialog id="helpDialog"><div class="panel-header"><h2 id="helpTitle" tabindex="-1" autofocus>舞台快捷键</h2></div><div class="keyboard-list"><span>开始 / 停止（含补抽） <kbd>Space</kbd></span><span>切换奖项（待机或本轮完成后） <kbd>↑ ↓</kbd></span><span>直接进入下一轮 <kbd>Enter</kbd></span><span>查看 / 关闭本场中奖名单 <kbd>W</kbd></span><span>显示 / 隐藏签到二维码 <kbd>Q</kbd></span><span>显示 / 隐藏本说明 <kbd>H</kbd></span><span>关闭弹窗 / 浏览器全屏 <kbd>Esc / F11</kbd></span></div><section class="portrait-preparation" aria-label="头像准备"><h3>本机头像准备</h3><p id="portraitProgress" role="status">正在读取名单…</p><p id="portraitStorage" class="muted"></p><div><button id="preflightStatus" class="preflight-status" type="button" aria-live="polite" aria-describedby="preflightReason" disabled>准备中</button></div><p id="preflightReason" class="muted" hidden></p><small class="muted">头像未准备完成不影响中奖资格；抽奖操作仍需连接服务器。</small></section></dialog>
+<dialog id="historyDialog" class="history-dialog" aria-labelledby="historyTitle"><div class="history-header"><div><p class="eyebrow">WINNERS OF THE NIGHT</p><h2 id="historyTitle" tabindex="-1" autofocus>本场中奖名单</h2><p id="historySummary" class="muted"></p></div></div><div id="historyContent" class="history-content" tabindex="0" aria-label="按奖项分组的中奖记录"></div><p class="history-footer">W / Esc 关闭</p></dialog>
+<dialog id="confirmDialog"><h2 id="confirmTitle" tabindex="-1" autofocus>确认操作</h2><p id="confirmText"></p><div class="panel-actions"><button id="cancelConfirm" type="button">取消 <kbd>Esc</kbd></button><button id="acceptConfirm" type="button" class="primary">确认不在场</button></div></dialog>
+<script type="module" src="./stage/app.js"></script>
+</body></html>

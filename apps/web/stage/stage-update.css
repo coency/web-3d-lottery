@@ -1,0 +1,49 @@
+.prize{top:auto;bottom:32px;left:32px;width:auto;display:flex;align-items:center;gap:9px;white-space:nowrap;z-index:4}.prize h2{font-size:20px;line-height:1.5;margin:0;letter-spacing:2px}.prize p:not(.eyebrow){font-size:12px;line-height:1.5;margin:0;letter-spacing:0}.prize strong{font-size:16px;min-width:0;margin:0 4px}.prize-divider{color:#756781;font-size:13px}.winners{left:7%;right:7%;top:30%}.winner-card{width:155px}.winner-actions{display:flex;flex-direction:column;align-items:center}.winner-card.vacant{border-style:dashed;background:#161125b0}.vacancy-icon{height:94px;font-size:55px;display:grid;place-items:center;color:#b5a0cd}.keyboard-hint{bottom:32px}.result .stage-status{display:none}.revealing .stage-status{display:block}body.rolling #universe,body.revealing #universe{opacity:1}body.result .prize{opacity:1}.winner-card button{margin-top:16px}.winners #resultNote{line-height:1.8}
+@media(max-width:1100px){.prize{bottom:30px;left:24px;gap:6px}.prize h2{font-size:18px}.prize p:not(.eyebrow){font-size:11px}.prize strong{font-size:15px}.organizer{font-size:11px;letter-spacing:1px}.winners{left:4%;right:4%}.winner-card{width:130px}}
+@media(max-width:600px){.prize{left:50%;transform:translateX(-50%);bottom:163px;gap:7px}.prize h2{font-size:18px}.prize p:not(.eyebrow){font-size:11px}.prize strong{font-size:14px}.winners{top:30%;left:3%;right:3%;padding:12px 5px}.winner-card{width:94px}.winner-card .winner-actions button{font-size:10px;margin-top:12px}.vacancy-icon{height:62px;font-size:40px}.keyboard-hint{bottom:20px}.stage-status{bottom:200px}.winners #resultNote{font-size:10px}}
+
+/* Portraits sit above the frosted HTML card backdrop. */
+.winner-universe{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+body.result #universe,body.revealing #universe{opacity:1;transition:none}
+.winners{position:absolute;inset:0;padding:0;background:none;pointer-events:none;border-radius:0}
+
+
+.winner-slots{position:absolute;inset:0}
+.winner-slot{position:absolute;width:var(--card-width);transform:translateX(-50%);text-align:center;pointer-events:auto;background:none;border:0;box-shadow:none}
+.winner-slot::before{content:"";position:absolute;inset:-10px 0 -14px;border:1px solid #e6c796b3;border-radius:10px;background:linear-gradient(145deg,#ffffff1f,#201a3566 48%,#11152580);backdrop-filter:blur(12px) saturate(110%);-webkit-backdrop-filter:blur(12px) saturate(110%);box-shadow:0 10px 28px #0002,inset 0 1px 0 #ffffff24;pointer-events:none}.winner-slot.vacant::before{border-style:dashed;border-color:#bfa2d65c;box-shadow:none}
+.cube-hit{display:block;width:calc(var(--cube-size)*1.2);height:calc(var(--cube-size)*1.24);margin:auto;background:transparent;border:0;border-radius:0;padding:0;color:var(--gold)}
+.winner-caption{position:relative;margin-top:12px}.winner-caption p{font-size:12px;line-height:16px;margin:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.winner-caption h3{font-size:20px;line-height:26px;font-weight:500;letter-spacing:1px;margin:0 10px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.winner-caption button{line-height:18px;margin-top:4px;padding:2px 0;background:none;border:0;border-bottom:1px solid #ffffff25;color:#aba1b9;font-size:12px}.winner-caption button:hover{color:#f5c5b0}.winner-caption button:disabled{visibility:hidden}
+.winner-slot.vacant .cube-hit{border:0;font-size:48px}.winner-slot.vacant h3{font-size:16px;color:#a494b1}
+.winners #resultNote{position:absolute;left:5%;right:5%;bottom:174px;margin:0;font-size:12px}
+@media(max-width:600px){.winners{inset:0;padding:0;background:none}.winner-caption{margin-top:10px}.winner-caption h3{font-size:13px;margin-bottom:10px}.winner-caption button{font-size:10px}.winner-slot.vacant h3{font-size:12px}.winners #resultNote{bottom:205px;font-size:10px}.winner-slot.vacant .cube-hit{font-size:30px}}
+.draw-button{white-space:nowrap}
+@media(max-width:600px){footer{width:min(82%,320px)}.draw-button{min-width:0;width:100%;gap:12px;font-size:16px;letter-spacing:2px}.draw-button kbd{flex-shrink:0}.prize{bottom:167px}}
+
+.history-dialog{width:min(1120px,90vw);max-height:86vh;padding:0;border-color:#e6c79644;background:linear-gradient(145deg,#211a33,#111221);box-shadow:0 30px 120px #000b}
+.history-header{display:flex;justify-content:space-between;gap:24px;padding:30px 36px 20px;border-bottom:1px solid #ffffff14}.history-header h2{font-family:'Noto Serif SC',serif;letter-spacing:3px;margin-bottom:10px}.history-header .eyebrow{margin-bottom:10px}.history-header .muted{margin:0}.history-content{max-height:calc(86vh - 205px);overflow:auto;padding:6px 36px 28px;scrollbar-color:#78647d #151325;outline-offset:-3px}.history-group h3{font-size:20px;font-weight:500;color:#edcf9f;margin:24px 0 16px;letter-spacing:2px}.history-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.history-person{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid #ffffff18;border-radius:8px;background:#ffffff03;min-width:0}.history-person strong{font-size:16px;font-weight:500;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-person p{font-size:12px;color:#aaa1b6;margin:8px 0}.history-status{font-size:11px;color:#e1c398;flex-shrink:0;padding:3px 7px;border-radius:5px;background:#e1c39812}.history-void{border-style:dashed;background:#ffffff02}.history-void .history-status{color:#d3a0a0}.history-footer{margin:0;padding:16px 36px;border-top:1px solid #ffffff14;font-size:12px;color:#a89cb6;letter-spacing:1px}.history-empty{padding:70px 16px;text-align:center;color:#ada3ba;font-size:16px}
+@media(max-width:1100px){.history-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.history-content:focus-visible{outline:1px solid #e6c79655;outline-offset:-2px}
+
+.winner-slot.dimmed{opacity:.3}.winner-slot .cube-hit{cursor:default;pointer-events:none}
+.preflight-status{align-self:center;font-size:12px;color:#e6c796}#preflightStatus:disabled{opacity:1;cursor:default}#preflightStatus[data-ready="true"]{color:#a6c9b1}
+body.physics-loading .stage-status{display:block;white-space:normal;text-align:center;width:min(90%,600px)}
+#winners:not([hidden])~.stage-status{display:none}
+
+body.blocked .stage-status{display:block;background:#151325e6;padding:10px 18px;border-radius:8px;z-index:8}
+
+dialog h2[tabindex="-1"]:focus{outline:none}
+#qrDialog > p{text-align:center}
+
+body.blocked .stage-status{top:90px;bottom:auto;max-width:90vw;white-space:normal}
+
+#confirmDialog .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}#confirmDialog .panel-actions button{height:44px;min-width:0;padding:0 12px;border-radius:8px;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px}#confirmDialog #cancelConfirm{background:transparent;border-color:#ffffff36;color:#ddd5e8}#confirmDialog #cancelConfirm:hover{background:#ffffff0c;border-color:#ffffff60}#confirmDialog #acceptConfirm{border-color:var(--gold)}#confirmDialog #acceptConfirm:hover{filter:brightness(1.08)}#confirmDialog #cancelConfirm kbd{font-size:10px;font-weight:400;opacity:.65}#confirmDialog #confirmText{line-height:1.8;color:#bcb4ca;font-size:14px}
+
+#stage.custom-background{background:#080917}#stage.custom-background>.vignette{background:none}
+
+@media(max-width:600px){.history-header{padding:22px 20px 16px}.history-content{padding:6px 20px 20px}.history-list{gap:8px}.history-person{padding:10px;gap:6px}.history-person strong{font-size:14px}.history-footer{padding:14px 20px}}
+.winner-slots.multi-row .winner-caption{margin-top:8px}
+.winner-slots.multi-row .winner-caption h3{font-size:18px;line-height:22px;margin:0 10px 4px}
+.winner-slots.multi-row .winner-caption p{font-size:11px;line-height:14px;margin:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.winner-slots.multi-row .winner-caption button{font-size:12px;line-height:18px;margin-top:4px;padding:2px 0}
+.portrait-preparation{margin-top:18px;padding-top:14px;border-top:1px solid #ffffff20}.portrait-preparation h3{font-size:15px;margin:0 0 10px}.portrait-preparation p{font-size:12px;line-height:1.7}.portrait-preparation>div{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.portrait-preparation button{padding:8px 10px;border:1px solid #e6c79660;border-radius:6px;color:#e6c796;background:#ffffff08;font-size:12px}#helpDialog{max-height:85svh;overflow-y:auto}
