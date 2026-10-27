@@ -1,3 +1,4 @@
+import {SimulationPortraitController,SimulationPortraitService} from './activities/simulation-portraits';
 import {RealtimeController} from './realtime.controller';
 import {WechatJoinController} from './activities/wechat-join.controller';
 import {WechatJoinService} from './activities/wechat-join.service';
@@ -43,7 +44,7 @@ class DevelopmentController {
   }
 }
 @Module({
-  controllers: [RealtimeController,WechatJoinController,WechatConfigurationController,DrawController,ParticipantManagementController,RosterController,ConfigurationController,AuthController, ActivitiesController, HealthController, ...(process.env.NODE_ENV === 'development' ? [DevelopmentController,DevelopmentJoinController] : [])],
-  providers: [WechatCleanupService,WechatJoinService,DrawService,ParticipantManagementService,RosterService,ConfigurationService,DatabaseService, AuthService, ActivitiesService],
+  controllers: [SimulationPortraitController,RealtimeController,WechatJoinController,WechatConfigurationController,DrawController,ParticipantManagementController,RosterController,ConfigurationController,AuthController, ActivitiesController, HealthController, ...(process.env.NODE_ENV === 'development' ? [DevelopmentController,DevelopmentJoinController] : [])],
+  providers: [SimulationPortraitService,WechatCleanupService,WechatJoinService,DrawService,ParticipantManagementService,RosterService,ConfigurationService,DatabaseService, AuthService, ActivitiesService],
 })
 export class AppModule {}

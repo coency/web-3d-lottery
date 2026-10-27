@@ -247,6 +247,9 @@ test('package preserves migration bytes and excludes host credentials/data',asyn
   assert.ok(all.includes('RELEASE_NOTES.md'));
   assert.ok(all.includes('source/apps/api/src/activities/wechat-cleanup.service.ts'));
   assert.ok(all.includes('source/apps/web/stage/portrait-cache.js'));
+  assert.ok(all.includes('source/apps/api/src/activities/simulation-portrait.ts'));
+  assert.ok(!all.some(p=>p.includes('public/demo-avatars/portraits-v1/')));
+  assert.match(await readFile(path.join(directory,'source/deploy/container/Caddyfile'),'utf8'),/handle \/demo-avatars\/portraits-v1\/\*/);
   const dockerfile=await readFile(path.join(directory,'source/deploy/container/Dockerfile'),'utf8');
   assert.ok(!dockerfile.includes('# syntax='));
   assert.match(dockerfile,/ARG NODE_IMAGE=public\.ecr\.aws\/docker\/library\/node:24\.14\.1-bookworm-slim/);

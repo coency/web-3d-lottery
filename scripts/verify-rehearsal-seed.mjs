@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, access, unlink } from 'node:fs/promises';
 import nodePath from 'node:path';
 import net from 'node:net';
 import pg from 'pg';
@@ -65,12 +65,24 @@ try{
  assert.equal((await json(await a.ctx.get('/api/v1/'+path+'/stage-people?mode=rehearsal'))).items.length,0);
 
  const simulationUrl=path+'/rehearsal/simulated-participants';
+ const portraitDirectory=nodePath.join(directory,'uploads','simulation','portraits-v1');
+ assert.equal((await anon.ctx.get('/demo-avatars/portraits-v1/1.webp')).status(),404);
+ await assert.rejects(access(portraitDirectory));
  const seedBody={target:2000,generation:run.generation},seedKey=randomUUID(),seedHeaders={'If-Match':config.version};
  assert.equal((await req(b,'POST',simulationUrl,seedBody,undefined,seedHeaders)).status(),404);
  assert.equal((await req(anon,'POST',simulationUrl,seedBody,undefined,seedHeaders)).status(),401);
  for(const target of [0,5001,1.5,'2000'])assert.equal((await req(a,'POST',simulationUrl,{...seedBody,target},undefined,seedHeaders)).status(),422);
  const seeded=await json(await req(a,'POST',simulationUrl,seedBody,seedKey,seedHeaders));
  assert.deepEqual(seeded,{added:2000,simulated:2000,participants:2000});
+ const portrait=await anon.ctx.get('/demo-avatars/portraits-v1/2000.webp');
+ assert.equal(portrait.status(),200);assert.match(portrait.headers()['content-type'],/image\/webp/);
+ assert.equal((await sharp(await portrait.body()).metadata()).width,256);
+ await access(nodePath.join(portraitDirectory,'2000.webp'));
+ assert.equal((await anon.ctx.get('/demo-avatars/portraits-v1/5000.webp')).status(),404);
+ // A pre-upgrade participant URL can recover even if its generated cache is absent.
+ await unlink(nodePath.join(portraitDirectory,'2000.webp'));
+ assert.deepEqual(await (await anon.ctx.get('/demo-avatars/portraits-v1/2000.webp')).body(),await portrait.body());
+ passed('portraits are absent before simulation, generated on demand and recover through legacy URLs');
  const sim=(await sql.query('SELECT nickname,avatar_url FROM activity_participants WHERE run_id=$1',[run.id])).rows;assert.equal(sim.length,2000);assert.ok(sim.every(p=>p.nickname.startsWith('模拟用户 ')&&p.avatar_url.startsWith('/demo-avatars/')));
  assert.equal(new Set(sim.map(p=>p.avatar_url)).size,2000);
  assert.ok(sim.every(p=>/^\/demo-avatars\/portraits-v1\/\d+\.webp$/.test(p.avatar_url)));

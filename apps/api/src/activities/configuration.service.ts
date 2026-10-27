@@ -1,3 +1,4 @@
+import {SimulationPortraitService} from './simulation-portraits';
 import { isDeepStrictEqual } from 'node:util';
 import { Injectable } from '@nestjs/common';
 import type { Request } from 'express';
@@ -10,7 +11,7 @@ import { formInput,ruleInput,prizesInput,validateAnswers,simulationTarget,Form,R
 import {wechatReadiness} from './wechat-readiness';
 @Injectable()
 export class ConfigurationService{
- constructor(private db:DatabaseService,private activities:ActivitiesService){}
+ constructor(private db:DatabaseService,private activities:ActivitiesService,private portraits:SimulationPortraitService){}
  private async config(c:PoolClient,id:string,version:string){
   await c.query('INSERT INTO activity_configurations(activity_id) VALUES($1) ON CONFLICT DO NOTHING',[id]);
   const row=(await c.query('SELECT * FROM activity_configurations WHERE activity_id=$1',[id])).rows[0];
@@ -146,7 +147,7 @@ export class ConfigurationService{
   validateWrite(req);
   const b=object(req.body,['target','generation']),target=simulationTarget(b.target);
   if(!Number.isSafeInteger(b.generation))fail(422,'INVALID_GENERATION','请重新加载彩排数据');
-  return this.db.transaction(async c=>{
+  const result=await this.db.transaction(async c=>{
    const user=await this.activities.identity(c,req);
    return this.activities.receipt(c,user.id,req,'rehearsal-simulation:'+id,{b,version:req.get('if-match')},async()=>{
     const activity=await this.activities.access(c,user.id,id,true);
@@ -178,6 +179,8 @@ export class ConfigurationService{
     return {added,simulated:target,participants:run.participants+added};
    });
   });
+  this.portraits.prepare(result.simulated);
+  return result;
  }
  async mode(req:Request,id:string,action:'clear-rehearsal'|'reset-draw'|'promote'){
   validateWrite(req);const b=object(req.body,['confirmation','generation']);

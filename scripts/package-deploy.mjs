@@ -34,6 +34,7 @@ export async function walk(directory){
   const result=[];
   for(const entry of await readdir(directory,{withFileTypes:true})){
     const full=path.join(directory,entry.name);
+    if(path.relative(root,full).split(path.sep).join('/')==='apps/web/public/demo-avatars/portraits-v1')continue;
     if(entry.isSymbolicLink())throw new Error(`不允许符号链接：${entry.name}`);
     if(entry.isDirectory())result.push(...await walk(full));
     else if(entry.isFile())result.push(full);

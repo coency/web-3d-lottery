@@ -1,3 +1,5 @@
+import {simulationPortraits,fulfillSimulationPortrait} from './lib/simulation-portraits.mjs';
+const portraitFixtures=await simulationPortraits(2000);
 import assert from 'node:assert/strict';
 import {createServer,preview} from 'vite';
 import {chromium} from 'playwright';
@@ -11,6 +13,7 @@ if(!production)await web.listen();
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 try{
  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];
+ await page.route('**/demo-avatars/portraits-v1/*',route=>fulfillSimulationPortrait(route,portraitFixtures));
  page.on('pageerror',e=>errors.push(e.message));
  const id='00000000-0000-4000-8000-000000000001';let rolling=false;
  const people=Array.from({length:2000},(_,i)=>({id:String(i),nickname:'模拟用户'+i,avatarUrl:'/demo-avatars/portraits-v1/'+(i+1)+'.webp'}));

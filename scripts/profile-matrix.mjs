@@ -1,3 +1,5 @@
+import {simulationPortraits,fulfillSimulationPortrait} from './lib/simulation-portraits.mjs';
+const portraitFixtures=await simulationPortraits(5000);
 // Isolated graphics benchmark: production assets, mocked draw API, 5000 distinct portraits.
 // No user activity or database is modified. Build the web workspace before running.
 // --corridor samples idle + start/running; --switch includes entering the theme.
@@ -19,6 +21,7 @@ let browser,joinTimer;
 try{
  browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[];
+ await page.route('**/demo-avatars/portraits-v1/*',route=>fulfillSimulationPortrait(route,portraitFixtures));
  page.on('pageerror',e=>errors.push(e.message));
  const id='00000000-0000-4000-8000-000000000001';let rolling=false;
  const people=Array.from({length:5000},(_,i)=>({id:String(i),nickname:'模拟用户'+i,avatarUrl:'/demo-avatars/portraits-v1/'+(i+1)+'.webp'}));

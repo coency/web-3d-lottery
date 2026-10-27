@@ -29,3 +29,6 @@ dist.zip
 coverage/
 playwright-report/
 test-results/
+
+# Simulated portraits are generated into the runtime upload directory.
+apps/web/public/demo-avatars/portraits-v1/

@@ -1,3 +1,5 @@
+import {simulationPortraits,fulfillSimulationPortrait} from './lib/simulation-portraits.mjs';
+const portraitFixtures=await simulationPortraits(40);
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {preview} from 'vite';
@@ -16,7 +18,7 @@ try{
   const prizes=[{id:'waterfall',name:'瀑布',theme:'galaxy-waterfall',total:10,batch:10,awarded:0,mode:'random'},{id:'matrix',name:'矩阵',theme:'starlight-matrix',total:10,batch:10,awarded:0,mode:'random'}];
   await context.addInitScript(()=>{window.EventSource=class{addEventListener(){}close(){}};});
   await context.route('**/assets/waterfall-physics.worker-*',async route=>{workerRequests++;await workerGate;if(failure)await route.abort();else await route.continue();});
-  await context.route('**/demo-avatars/portraits-v1/*',async route=>{avatarRequests++;await route.continue();});
+  await context.route('**/demo-avatars/portraits-v1/*',async route=>{avatarRequests++;await fulfillSimulationPortrait(route,portraitFixtures);});
   await context.route('**/api/**',async route=>{
    const path=new URL(route.request().url()).pathname;let data={};
    if(path.endsWith('/auth/me'))data={id:'startup-owner',account:'fixture'};

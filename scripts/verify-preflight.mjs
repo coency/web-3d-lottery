@@ -1,3 +1,5 @@
+import {simulationPortraits,fulfillSimulationPortrait} from './lib/simulation-portraits.mjs';
+const portraitFixtures=await simulationPortraits(3);
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {createServer} from 'vite';
@@ -17,7 +19,7 @@ try{
  await context.addInitScript(()=>{
   window.EventSource=class{constructor(){window.testStream=this;this.listeners={};}addEventListener(name,fn){this.listeners[name]=fn;}close(){}emit(name){this.listeners[name]?.({data:JSON.stringify({activities:[]})});}};
  });
- await context.route('**/demo-avatars/portraits-v1/*',async route=>{if(holdAvatars)await avatarGate;await route.continue();});
+ await context.route('**/demo-avatars/portraits-v1/*',async route=>{if(holdAvatars)await avatarGate;await fulfillSimulationPortrait(route,portraitFixtures);});
  await context.route('**/test-brand.png',route=>failedBrand?route.fulfill({contentType:'text/plain',body:'invalid image'}):route.fulfill({contentType:'image/svg+xml',path:'apps/web/public/favicon.svg'}));
  await context.route('**/api/**',async route=>{
   const path=new URL(route.request().url()).pathname;let data={};

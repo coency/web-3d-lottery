@@ -1,3 +1,4 @@
+import {simulationPortraits} from './lib/simulation-portraits.mjs';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {readFile,mkdtemp,mkdir,writeFile} from 'node:fs/promises';
@@ -9,8 +10,7 @@ import {root} from './lib/config.mjs';
 
 await mkdir(path.join(root,'artifacts'),{recursive:true});
 const directory=await mkdtemp(path.join(root,'artifacts/portrait-cache-'));
-const avatars=[];
-for(let i=1;i<=5000;i++)avatars.push(await readFile(path.join(root,'apps/web/public/demo-avatars/portraits-v1',i+'.webp')));
+const avatars=await simulationPortraits(5000);
 assert.equal(new Set(avatars.map(bytes=>createHash('sha256').update(bytes).digest('hex'))).size,5000);
 const sampleMetadata=await sharp(avatars[0]).metadata();assert.equal(sampleMetadata.width,256);assert.equal(sampleMetadata.height,256);
 const downloadBytes=avatars.slice(0,2000).reduce((sum,bytes)=>sum+bytes.length,0);
