@@ -13,7 +13,7 @@ const files=['.dockerignore','package.json','package-lock.json','tsconfig.base.j
   'scripts/account.mjs','scripts/check-production.mjs','scripts/lib/migrations.mjs',
   'deploy/container/Dockerfile','deploy/container/Caddyfile','deploy/container/runtime.mjs'];
 const deployFiles=['install.sh','engine.sh','starlit.sh','compose.yaml'];
-const documents=['docs/一键部署.md','docs/部署流程步骤.md','docs/2000人服务器测试.md','docs/部署包更新说明.md','docs/升级后清理.md'];
+const documents=['docs/部署说明.md','docs/2000人服务器测试.md'];
 export function validateVersion(version){
   if(typeof version!=='string'||!/^\d+\.\d+\.\d+(?:-[a-z0-9]+(?:\.[a-z0-9]+)*)?$/.test(version))throw new Error('无效版本号；请显式指定 --version，例如 --version=1.0.0-rc.8');
   return version;
@@ -71,11 +71,8 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
     else await copyFile(source,destination);
   };
   for(const file of deployFiles)await copy(`deploy/container/${file}`,path.join(directory,file));
-  await copy('docs/一键部署.md',path.join(directory,'README.md'));
-  await copy('docs/部署流程步骤.md',path.join(directory,'INSTALLATION.md'));
+  await copy('docs/部署说明.md',path.join(directory,'INSTALLATION.md'));
   await copy('docs/2000人服务器测试.md',path.join(directory,'TESTING.md'));
-  await copy('docs/部署包更新说明.md',path.join(directory,'RELEASE_NOTES.md'));
-  await copy('docs/升级后清理.md',path.join(directory,'CLEANUP.md'));
   const sourceFiles=[...files];
   for(const sub of directories)for(const full of await walk(path.join(root,sub)))sourceFiles.push(path.relative(root,full));
   for(const file of sourceFiles){

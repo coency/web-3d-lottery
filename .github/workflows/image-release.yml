@@ -5,7 +5,10 @@ on:
       version:
         description: New release version (without v)
         required: true
-        default: 1.0.0-rc.2
+      notes:
+        description: Release update summary (optional; generated changes are appended)
+        required: false
+        type: string
 permissions:
   contents: write
 concurrency:
@@ -37,6 +40,8 @@ jobs:
       - name: Verify, build all images, smoke test and package
         run: npm run package:deploy -- --version="$RELEASE_VERSION" --images
       - name: Prepare release attachments
+        env:
+          RELEASE_NOTES: ${{ inputs.notes }}
         run: |
           node --input-type=module <<'JS'
           import {readFile,copyFile,mkdir,writeFile} from 'node:fs/promises';
@@ -46,14 +51,16 @@ jobs:
           await mkdir('artifacts/delivery');
           for(const file of [record.archive,record.archive+'.sha256'])await copyFile(file,path.join('artifacts/delivery',path.basename(file)));
           const bundle=record.archive.replace(/\.tar\.gz$/,'');
-          for(const file of ['INSTALLATION.md','RELEASE_NOTES.md','RELEASE.json'])await copyFile(path.join(bundle,file),path.join('artifacts/delivery',file));
-          await writeFile('artifacts/delivery/RELEASE_BODY.md',(await readFile(path.join(bundle,'RELEASE_NOTES.md'),'utf8'))+'\n\nSHA256: `'+record.sha256+'`\n');
+          await copyFile(path.join(bundle,'INSTALLATION.md'),'artifacts/delivery/IMAGES_INSTALLATION.md');
+          const summary=(process.env.RELEASE_NOTES||'').trim();
+          const notes=[summary,'完整 Linux amd64 Docker 镜像部署包。下载压缩包、同名 `.sha256` 文件及 `IMAGES_INSTALLATION.md`，按说明安装或升级。','安装脚本自动安装缺少的 Docker Engine 和 Compose。升级成功后清理本次上传包和新解压目录，保留运行数据及备份。','验收信息保存在包内 `RELEASE.json`；公网 HTTPS 和真实手机微信仍需实际服务器验证。','SHA256: `'+record.sha256+'`'].filter(Boolean).join('\n\n');
+          await writeFile('artifacts/delivery/RELEASE_BODY.md',notes+'\n');
           JS
       - name: Publish prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$RELEASE_VERSION" artifacts/delivery/*.tar.gz artifacts/delivery/*.sha256 artifacts/delivery/INSTALLATION.md artifacts/delivery/RELEASE.json --target "$GITHUB_SHA" --title "v$RELEASE_VERSION" --notes-file artifacts/delivery/RELEASE_BODY.md --prerelease
+          gh release create "v$RELEASE_VERSION" artifacts/delivery/*.tar.gz artifacts/delivery/*.sha256 artifacts/delivery/IMAGES_INSTALLATION.md --target "$GITHUB_SHA" --title "v$RELEASE_VERSION" --notes-file artifacts/delivery/RELEASE_BODY.md --generate-notes --prerelease
       - name: Keep failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

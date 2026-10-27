@@ -244,7 +244,11 @@ test('package preserves migration bytes and excludes host credentials/data',asyn
   assert.ok(all.includes('source/apps/api/src/main.ts'));assert.ok(all.includes('install.sh'));
   assert.ok(all.includes('INSTALLATION.md'));
   assert.ok(all.includes('TESTING.md'));
-  assert.ok(all.includes('RELEASE_NOTES.md'));
+  assert.ok(!all.some(file=>['README.md','CLEANUP.md','RELEASE_NOTES.md'].includes(file)));
+  const instructions=await readFile(path.join(directory,'INSTALLATION.md'),'utf8');
+  assert.match(instructions,/starlit-1\.0\.0-test\.1-source\.tar\.gz/);
+  assert.doesNotMatch(instructions,/starlit-1\.0\.0-rc\.2-images/);
+  for(const topic of ['首次安装','升级已有网站','微信接入','备份','自动清理','常见问题'])assert.ok(instructions.includes(topic));
   assert.ok(all.includes('source/apps/api/src/activities/wechat-cleanup.service.ts'));
   assert.ok(all.includes('source/apps/web/stage/portrait-cache.js'));
   assert.ok(all.includes('source/apps/api/src/activities/simulation-portrait.ts'));
