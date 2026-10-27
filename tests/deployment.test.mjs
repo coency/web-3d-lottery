@@ -363,9 +363,9 @@ shellTest('automatic extracted package removal preserves changed mounted unhealt
     }
     if(scenario==='mount')f.env.MOCK_MOUNT_PATH=posix(f.next.folder);
     if(scenario==='unhealthy')f.env.MOCK_CLEANUP_HEALTH='unhealthy';
-    if(scenario==='delete-failure')await writeFile(path.join(f.bin,'rm'),'#!/usr/bin/env bash\ncase "$*" in *--one-file-system*) exit 1;; *) /usr/bin/rm "$@";; esac\n');
+    if(scenario==='delete-failure')await writeFile(path.join(f.bin,'rm'),'#!/usr/bin/env bash\ncase "$*" in *--one-file-system*) exit 1;; *) /usr/bin/rm "$@";; esac\n',{mode:0o755});
     const result=execute(f,['upgrade',posix(f.next.folder)],{env:f.env});success(result);
-    assert.match(result.stderr,/解压目录未通过清理检查或删除未完成/);
+    assert.match(result.stderr,/解压目录未通过清理检查或删除未完成/,scenario);
     assert.ok(existsSync(f.next.folder));assert.ok(existsSync(f.folder));
   }
 });
