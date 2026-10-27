@@ -16,7 +16,7 @@
 
 ## 安装到服务器
 
-前往 [Releases](https://github.com/coency/web-3d-lottery/releases)，选择一种部署包：
+前往 [Releases](https://github.com/coency/web-3d-lottery/releases) 查看可下载的版本和附件。项目支持以下两种部署方式：
 
 | 部署方式 | 下载文件 | 服务器上的处理方式 |
 | --- | --- | --- |
@@ -29,7 +29,7 @@
 
 GitHub 自动生成的 `Source code (zip/tar.gz)` 是仓库源码快照，不是整理好的部署包。首次安装、升级、备份、清理和故障处理统一见[部署说明](docs/部署说明.md)。
 
-**版本状态**：目前已发布 `v1.0.0-rc.2` 预发布部署包。`main` 中新增的模拟头像按需生成和文档合并尚未重新打包；下载 rc.2 不会包含这些后续修改。各版本内容见 [Release 更新说明](https://github.com/coency/web-3d-lottery/releases)。
+**版本状态**：可下载版本以 [Release 列表](https://github.com/coency/web-3d-lottery/releases) 为准。`main` 中新增的模拟头像按需生成和文档整理尚未发布新版部署包；源码更新不会自动改变已发布附件的内容。
 
 ## 本地开发
 
