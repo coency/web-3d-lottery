@@ -24,3 +24,10 @@ test('legacy packaging CLI reaches the gate without an async import deadlock',()
  const result=spawnSync(process.execPath,[fileURLToPath(new URL('../scripts/package-deploy.mjs',import.meta.url)),'--version=invalid'],{encoding:'utf8',timeout:10000,windowsHide:true});
  assert.equal(result.error,undefined);assert.equal(result.status,1);assert.match(result.stderr,/无效版本号/);
 });
+
+test('paired packaging cannot be combined with check-only or image-only options',()=>{
+ for(const args of [['--both','--check'],['--both','--images','--version=1.0.0-rc.3']]){
+  const result=spawnSync(process.execPath,[fileURLToPath(new URL('../scripts/release.mjs',import.meta.url)),...args],{encoding:'utf8',timeout:10000,windowsHide:true});
+  assert.equal(result.error,undefined);assert.equal(result.status,1);assert.match(result.stderr,/用法/);
+ }
+});

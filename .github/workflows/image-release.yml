@@ -1,4 +1,4 @@
-name: Build complete image deployment bundle
+name: Build source and Docker image deployment bundles
 on:
   workflow_dispatch:
     inputs:
@@ -33,12 +33,14 @@ jobs:
         run: |
           node --input-type=module -e "import {validateVersion} from './scripts/package-deploy.mjs'; validateVersion(process.env.RELEASE_VERSION)"
           if gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then echo 'Release already exists'; exit 1; fi
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$RELEASE_VERSION" --jq '.object.sha' 2>/dev/null || true)
+          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then echo 'Existing tag points to a different commit'; exit 1; fi
           docker info
           docker compose version
           "$CHROME_PATH" --version
       - run: npm ci --no-audit --no-fund
       - name: Verify, build all images, smoke test and package
-        run: npm run package:deploy -- --version="$RELEASE_VERSION" --images
+        run: npm run package:deploy -- --version="$RELEASE_VERSION" --both
       - name: Prepare release attachments
         env:
           RELEASE_NOTES: ${{ inputs.notes }}
@@ -47,20 +49,25 @@ jobs:
           import {readFile,copyFile,mkdir,writeFile} from 'node:fs/promises';
           import path from 'node:path';
           const v=process.env.RELEASE_VERSION;
-          const record=JSON.parse(await readFile(`artifacts/releases/${v}.json`));
+          const imageRecord=JSON.parse(await readFile(`artifacts/releases/${v}.json`));
+          const sourceRecord=JSON.parse(await readFile(`artifacts/releases/${v}-source.json`));
           await mkdir('artifacts/delivery');
-          for(const file of [record.archive,record.archive+'.sha256'])await copyFile(file,path.join('artifacts/delivery',path.basename(file)));
-          const bundle=record.archive.replace(/\.tar\.gz$/,'');
-          await copyFile(path.join(bundle,'INSTALLATION.md'),'artifacts/delivery/IMAGES_INSTALLATION.md');
+          for(const record of [sourceRecord,imageRecord]){
+            for(const file of [record.archive,record.archive+'.sha256'])await copyFile(file,path.join('artifacts/delivery',path.basename(file)));
+            const bundle=record.archive.replace(/\.tar\.gz$/,'');
+            await copyFile(path.join(bundle,'INSTALLATION.md'),`artifacts/delivery/${record.kind.toUpperCase()}_INSTALLATION.md`);
+          }
           const summary=(process.env.RELEASE_NOTES||'').trim();
-          const notes=[summary,'完整 Linux amd64 Docker 镜像部署包。下载压缩包、同名 `.sha256` 文件及 `IMAGES_INSTALLATION.md`，按说明安装或升级。','安装脚本自动安装缺少的 Docker Engine 和 Compose。升级成功后清理本次上传包和新解压目录，保留运行数据及备份。','验收信息保存在包内 `RELEASE.json`；公网 HTTPS 和真实手机微信仍需实际服务器验证。','SHA256: `'+record.sha256+'`'].filter(Boolean).join('\n\n');
+          const url=`https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${v}`;
+          const table=['| 类型 | 部署压缩包 | 操作说明 |','| --- | --- | --- |',`| 源码部署包 | [starlit-${v}-source.tar.gz](${url}/starlit-${v}-source.tar.gz) | [源码版安装说明](${url}/SOURCE_INSTALLATION.md) |`,`| Docker 镜像部署包 | [starlit-${v}-images.tar.gz](${url}/starlit-${v}-images.tar.gz) | [镜像版安装说明](${url}/IMAGES_INSTALLATION.md) |`].join('\n');
+          const notes=['同一功能版本提供两种部署包，任选一种，不需要同时安装。',table,summary,'- 源码版：包较小，在服务器下载依赖并构建应用。\n- 镜像版：包含应用、网关和 PostgreSQL 的 Linux amd64 镜像，服务器直接导入，无需现场编译。\n- 两种包均自动安装缺少的 Docker Engine 和 Compose；升级前备份，升级成功后自动删除本次上传包、校验文件和新解压目录，保留运行数据及备份。\n- 不包含开发电脑的账号、活动、数据库、上传文件或微信密钥。','下载选中压缩包的同名 `.sha256` 文件，并按对应说明操作。不要将 GitHub 自动提供的 `Source code (zip/tar.gz)` 当作部署包。','两种包来自同一份源码，共用本次完整发布验收结果；镜像包另通过实际导入和容器运行检查。验收信息保存在包内 `RELEASE.json`，公网 HTTPS 和真实手机微信仍需实际服务器验证。','源码包 SHA256：`'+sourceRecord.sha256+'`','镜像包 SHA256：`'+imageRecord.sha256+'`'].filter(Boolean).join('\n\n');
           await writeFile('artifacts/delivery/RELEASE_BODY.md',notes+'\n');
           JS
       - name: Publish prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$RELEASE_VERSION" artifacts/delivery/*.tar.gz artifacts/delivery/*.sha256 artifacts/delivery/IMAGES_INSTALLATION.md --target "$GITHUB_SHA" --title "v$RELEASE_VERSION" --notes-file artifacts/delivery/RELEASE_BODY.md --generate-notes --prerelease
+          gh release create "v$RELEASE_VERSION" artifacts/delivery/*.tar.gz artifacts/delivery/*.sha256 artifacts/delivery/*_INSTALLATION.md --target "$GITHUB_SHA" --title "v$RELEASE_VERSION" --notes-file artifacts/delivery/RELEASE_BODY.md --generate-notes --prerelease
       - name: Keep failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

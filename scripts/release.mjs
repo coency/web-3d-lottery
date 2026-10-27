@@ -23,9 +23,9 @@ function execute(command,name){
  });
 }
 export async function release(args){
- const checkOnly=args.includes('--check'),includeImages=args.includes('--images');
+ const checkOnly=args.includes('--check'),both=args.includes('--both'),includeImages=both||args.includes('--images');
  const versions=args.filter(a=>a.startsWith('--version='));
- if(args.some(a=>a!=='--check'&&a!=='--images'&&!a.startsWith('--version='))||versions.length>1||checkOnly&&(versions.length||includeImages))throw new Error('用法：npm run release:check，或 npm run package:deploy -- --version=1.0.0-rc.8 [--images]');
+ if(args.some(a=>!['--check','--images','--both'].includes(a)&&!a.startsWith('--version='))||versions.length>1||both&&args.includes('--images')||checkOnly&&(versions.length||includeImages))throw new Error('用法：npm run release:check，或 npm run package:deploy -- --version=1.0.0-rc.3 [--images | --both]');
  const version=checkOnly?null:validateVersion(versions[0]?.slice(10));
  const parent=path.join(root,'artifacts');await mkdir(parent,{recursive:true});
  // Serialize publication and prevent accidentally reusing a release identity.
@@ -56,17 +56,29 @@ export async function release(args){
     imageVerification=JSON.parse(await readFile(path.join(parent,'image-smoke.json'),'utf8'));
     if(!imageVerification.passed)throw new Error('镜像运行检查未通过。');
   }
+  const bundles=[{directory,kind:includeImages?'images':'source',record}];
+  if(both){
+    const sourceDirectory=await prepareBundle(staging,{version});
+    const settings=await readFile(path.join(directory,'release.env'),'utf8');
+    if(await readFile(path.join(sourceDirectory,'release.env'),'utf8')!==settings.replace('BUNDLE_KIND=images','BUNDLE_KIND=source'))throw new Error('源码包与镜像包的源码指纹不一致。');
+    bundles.push({directory:sourceDirectory,kind:'source',record:path.join(registry,version+'-source.json')});
+  }
   if(await inputFingerprint()!==evidence.sourceFingerprint)throw new Error('打包期间源码发生变化，未生成部署压缩包。请重新验收。');
+  const records=[];
+  for(const {directory,kind,record} of bundles){
   const sourceManifest=await readFile(path.join(directory,'SHA256SUMS'));
-  const info={version,builtAt:new Date().toISOString(),bundleFingerprint:createHash('sha256').update(sourceManifest).digest('hex'),...evidence,...(imageVerification?{imageVerification}:{})};
+  const info={version,kind,builtAt:new Date().toISOString(),bundleFingerprint:createHash('sha256').update(sourceManifest).digest('hex'),...evidence,...(imageVerification?{imageVerification,imageVerificationScope:kind==='images'?'Exported images loaded and run in Docker':'Same source and deployment scripts as the companion image bundle; source installation builds images on the server'}:{})};
   await writeFile(path.join(directory,'RELEASE.json'),JSON.stringify(info,null,2)+'\n');
   await manifest(directory);
   const archive=directory+'.tar.gz';
   await execute(['tar','-czf',archive,'-C',staging,path.basename(directory)],'archive');
   const digest=createHash('sha256');for await(const chunk of createReadStream(archive))digest.update(chunk);const hash=digest.digest('hex');
   await writeFile(archive+'.sha256',hash+'  '+path.basename(archive)+'\n');
-  await writeFile(record,JSON.stringify({...info,archive,sha256:hash},null,2)+'\n',{flag:'wx'});
+  records.push({record,info:{...info,archive,sha256:hash}});
   console.info('\n部署包：'+archive+'\n验收记录：'+path.join(directory,'RELEASE.json')+'\n尚未部署到服务器；服务器启动和 HTTPS 需现场确认。');
+  }
+  // Publish registry records only after every requested archive is complete.
+  for(const {record,info} of records)await writeFile(record,JSON.stringify(info,null,2)+'\n',{flag:'wx'});
  }catch(error){
   if(work)await writeFile(path.join(work,'FAILED.txt'),error.message+'\n');
   throw error;

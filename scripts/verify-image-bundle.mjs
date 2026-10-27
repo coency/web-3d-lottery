@@ -1,4 +1,4 @@
-import {mkdtemp,mkdir,readFile,writeFile,chmod} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
@@ -26,7 +26,9 @@ for(const service of Object.values(spec.services)){
 spec.services.api.ports=['127.0.0.1::80'];
 await mkdir(path.join(fixture,'config'));
 for(const name of ['postgres','uploads','verification','caddy','caddy-config'])await mkdir(path.join(fixture,'data',name),{recursive:true});
-await chmod(path.join(fixture,'data/uploads'),0o777);
+// Match install.sh ownership and permissions; native portrait generation must
+// work as the production node user, without a world-writable upload directory.
+run(['run','--rm','--network','none','--user','0','--mount',`type=bind,src=${path.join(fixture,'data/uploads')},dst=/uploads`,release.APP_IMAGE,'node','-e',"const fs=require('node:fs');fs.chownSync('/uploads',1000,1000);fs.chmodSync('/uploads',0o750)"]);
 await writeFile(path.join(fixture,'config/database.env'),`POSTGRES_USER=starlit\nPOSTGRES_PASSWORD=${password}\nPOSTGRES_DB=starlit\n`,{mode:0o600});
 await writeFile(path.join(fixture,'config/app.env'),`NODE_ENV=production\nAPI_HOST=127.0.0.1\nAPI_PORT=3000\nTRUST_PROXY=loopback\nAPP_ORIGIN=https://smoke.starlit.invalid\nDATABASE_URL=postgresql://starlit:${password}@db:5432/starlit\nAUTH_SECRET=${randomBytes(48).toString('hex')}\nWECHAT_MASTER_KEY=${randomBytes(32).toString('hex')}\nASSET_DIRECTORY=/var/lib/starlit/uploads\nWECHAT_VERIFICATION_DIRECTORY=/var/lib/starlit/verification\nWECHAT_OAUTH_PROVIDER=disabled\n`,{mode:0o600});
 // The isolated smoke test uses HTTP locally; public DNS/TLS/WeChat need deployment-time validation.
@@ -47,9 +49,20 @@ try{
   if(route.endsWith('.txt'))assert.equal(text,'smoke-verification');else assert.match(text,/<html/i);
  }
  dc(['exec','-T','api','node','-e',"fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]);
+ const portraitUrl='http://'+address+'/demo-avatars/portraits-v1/';
+ assert.equal((await fetch(portraitUrl+'1.webp',{signal:AbortSignal.timeout(15000)})).status,404);
+ dc(['exec','-T','api','node','-e',"const {SimulationPortraitStore}=require('./apps/api/build/activities/simulation-portrait-store.js');const store=new SimulationPortraitStore(process.env.ASSET_DIRECTORY+'/simulation/portraits-v1');Promise.all([store.ensure(1),store.ensure(2)]).then(()=>store.close()).catch(e=>{console.error(e);process.exitCode=1})"]);
+ const portraits=[];
+ for(const id of [1,2]){
+  const response=await fetch(portraitUrl+id+'.webp',{signal:AbortSignal.timeout(15000)});
+  assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/^image\/webp/);
+  const bytes=Buffer.from(await response.arrayBuffer());
+  assert.equal(bytes.toString('ascii',8,12),'WEBP');portraits.push(bytes);
+ }
+ assert.notDeepEqual(portraits[0],portraits[1]);
  dc(['restart','db']);dc(['up','-d','--pull','never','--wait','--wait-timeout','150','db']);
  assert.equal(dc(['run','--rm','--no-deps','-T','api','node','deploy/container/runtime.mjs','has-account']),'yes');
- const report={passed:true,platform:'linux/amd64',archiveImported:true,migrations:true,accountInitialization:true,apiHealth:true,threeFrontendEntrypoints:true,verificationFile:true,databaseRestartPersistence:true,publicTlsAndWechat:false};
+ const report={passed:true,platform:'linux/amd64',archiveImported:true,migrations:true,accountInitialization:true,apiHealth:true,threeFrontendEntrypoints:true,verificationFile:true,onDemandPortraitGeneration:true,portraitUploadPermissions:true,portraitGatewayRouting:true,databaseRestartPersistence:true,publicTlsAndWechat:false};
  await writeFile(path.join(root,'artifacts/image-smoke.json'),JSON.stringify(report,null,2)+'\n');
- console.info('PASS exported images: database, migration, account, API, gateway, verification file and restart persistence');
+ console.info('PASS exported images: database, migration, account, API, gateway, verification file, on-demand portraits and restart persistence');
 }finally{dc(['down','--volumes','--remove-orphans']);}

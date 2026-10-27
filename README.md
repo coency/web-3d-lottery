@@ -29,7 +29,7 @@
 
 GitHub 自动生成的 `Source code (zip/tar.gz)` 是仓库源码快照，不是整理好的部署包。首次安装、升级、备份、清理和故障处理统一见[部署说明](docs/部署说明.md)。
 
-**版本状态**：可下载版本以 [Release 列表](https://github.com/coency/web-3d-lottery/releases) 为准。`main` 中新增的模拟头像按需生成和文档整理尚未发布新版部署包；源码更新不会自动改变已发布附件的内容。
+**版本状态**：可下载版本以 [Release 列表](https://github.com/coency/web-3d-lottery/releases) 为准，部署包对应同名版本标签的源码。`main` 后续更新不会自动改变已发布附件的内容。
 
 ## 本地开发
 
