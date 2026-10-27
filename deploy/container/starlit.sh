@@ -5,6 +5,19 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 base=$PWD
 die(){ echo "$*" >&2; exit 1; }
 value(){ sed -n "s/^$1=//p" "$2" | tr -d '\r'; }
+bundle_kind(){
+  local kind
+  kind=$(value BUNDLE_KIND "$1/release.env")
+  if [[ -z "$kind" ]]; then
+    if [[ -f "$1/images.tar" ]]; then kind=images; else kind=source; fi
+  fi
+  [[ $kind == source || $kind == images ]] || die '部署包类型无效。'
+  printf '%s' "$kind"
+}
+current_kind(){
+  if [[ -f "$base/releases/$1/release.env" ]]; then bundle_kind "$base/releases/$1";
+  else bundle_kind "$base"; fi
+}
 dc(){ docker compose --env-file "$base/release.env" --env-file "$base/config/compose.env" -f "$base/compose.yaml" "$@"; }
 usage(){ echo '用法：sudo bash starlit.sh start|stop|status|logs|backup|reset-password'; echo '恢复到空目录：sudo bash starlit.sh restore /绝对路径/备份目录'; echo '升级：sudo bash starlit.sh upgrade /绝对路径/新版本部署包目录'; echo '清理预览：sudo bash starlit.sh cleanup [--package /新解压目录] [--archive /压缩包.tar.gz | --downloads]'; echo '--downloads：同时检查 /root 中当前版本的源码压缩包及校验文件'; echo '确认清理：在以上命令末尾加 --apply，再按提示输入 CLEAN'; }
 action=${1:-help}
@@ -30,15 +43,21 @@ verify_tree(){
 }
 
 images(){
-  local directory=$1 app gateway ref
+  local directory=$1 app gateway ref missing=0
   app=$(value APP_IMAGE "$directory/release.env")
   gateway=$(value GATEWAY_IMAGE "$directory/release.env")
   for ref in "$app" "$gateway"; do
     [[ $ref =~ ^[a-zA-Z0-9][a-zA-Z0-9_./:@-]+$ ]] || die '镜像名称无效。'
   done
-  if [[ -f "$directory/images.tar" ]]; then
-    verify_tree "$directory"
-    docker load -i "$directory/images.tar"
+  if [[ $(bundle_kind "$directory") == images ]]; then
+    [[ -f "$directory/images.tar" ]] || die '镜像部署包缺少 images.tar，请重新上传完整包。'
+    for ref in "$app" "$gateway" public.ecr.aws/docker/library/postgres:18.6-bookworm; do
+      docker image inspect "$ref" >/dev/null 2>&1 || missing=1
+    done
+    if (( missing )); then
+      verify_tree "$directory"
+      docker load -i "$directory/images.tar"
+    fi
   elif [[ -d "$directory/source" ]]; then
     for ref in "$app" "$gateway"; do
       if ! docker image inspect "$ref" >/dev/null 2>&1; then
@@ -54,7 +73,11 @@ images(){
   for ref in "$app" "$gateway"; do
     [[ $(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref") == linux/amd64 ]] || die '镜像必须为 linux/amd64。'
   done
-  docker image inspect public.ecr.aws/docker/library/postgres:18.6-bookworm >/dev/null 2>&1 || docker pull public.ecr.aws/docker/library/postgres:18.6-bookworm
+  if [[ $(bundle_kind "$directory") == images ]]; then
+    [[ $(docker image inspect --format '{{.Os}}/{{.Architecture}}' public.ecr.aws/docker/library/postgres:18.6-bookworm) == linux/amd64 ]] || die '数据库镜像缺失或架构不匹配。'
+  else
+    docker image inspect public.ecr.aws/docker/library/postgres:18.6-bookworm >/dev/null 2>&1 || docker pull public.ecr.aws/docker/library/postgres:18.6-bookworm
+  fi
 }
 current_images(){
   local version
@@ -220,10 +243,11 @@ cleanup_image_used(){
 # Called only after upgrade, HTTPS verification and maintenance-script replacement
 # have completed. This deliberately does not invoke the broader cleanup command.
 upgrade_package(){
-  local current=$1 package=$2
+  local current=$1 package=$2 kind
+  kind=$(current_kind "$current")
   if ! (
     # Only the explicit upgrade input, outside the live installation, is disposable.
-    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-source" ]] || exit 1
+    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-$kind" ]] || exit 1
     [[ ! -e "$package/config" && ! -e "$package/data" ]] || exit 1
     cleanup_tree "$package" && cleanup_tree "$base/releases/$current" || exit 1
     diff -qr -- "$package" "$base/releases/$current" >/dev/null || exit 1
@@ -235,8 +259,9 @@ upgrade_package(){
   fi
 }
 upgrade_downloads(){
-  local current=$1 archive
-  archive="/root/starlit-$current-source.tar.gz"
+  local current=$1 archive kind hash
+  kind=$(current_kind "$current")
+  archive="/root/starlit-$current-$kind.tar.gz"
   if [[ ! -e "$archive" && ! -L "$archive" && ! -e "$archive.sha256" && ! -L "$archive.sha256" ]]; then return 0; fi
   if ! (
     [[ -f "$archive" && ! -L "$archive" && -f "$archive.sha256" && ! -L "$archive.sha256" ]] || exit 1
@@ -247,7 +272,7 @@ upgrade_downloads(){
     hash=${hash%% *}
     [[ $(cat -- "$archive.sha256") == "$hash  $(basename -- "$archive")" ]] || exit 1
     # A same-version archive must also belong to this exact installed bundle.
-    tar -xOzf "$archive" "starlit-$current-source/SHA256SUMS" | cmp - "$base/releases/$current/SHA256SUMS" || exit 1
+    tar -xOzf "$archive" "starlit-$current-$kind/SHA256SUMS" | cmp - "$base/releases/$current/SHA256SUMS" || exit 1
     cleanup_ready || exit 1
     rm -- "$archive" "$archive.sha256" || exit 1
     echo "已自动删除本次上传文件：$archive 和同名 .sha256 文件"
@@ -257,7 +282,7 @@ upgrade_downloads(){
 }
 cleanup(){
   shift
-  local apply=0 downloads=0 package='' archive='' current previous='' folder version name project count=0 ref prefix answer size total=0 hash before
+  local apply=0 downloads=0 package='' archive='' current previous='' folder version name project count=0 ref prefix answer size total=0 hash before kind
   local -a remove_dirs=() remove_files=() remove_images=()
   local -A keep=() known=() known_images=() fingerprints=()
   for ref in realpath mountpoint diff find du sha256sum; do command -v "$ref" >/dev/null || die "缺少清理所需工具：$ref"; done
@@ -275,9 +300,10 @@ cleanup(){
   [[ $(realpath -e -- "$base") == "$base" ]] || die '安装目录包含符号链接，拒绝清理。'
   current=$(value RELEASE_VERSION release.env)
   [[ $current =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9.]+)?$ ]] || die '当前版本号无效。'
+  kind=$(current_kind "$current")
   if (( downloads )); then
     [[ -z "$archive" ]] || die '--downloads 与 --archive 只能选择一种。'
-    archive="/root/starlit-$current-source.tar.gz"
+    archive="/root/starlit-$current-$kind.tar.gz"
     if [[ ! -e "$archive" && ! -L "$archive" && ! -e "$archive.sha256" && ! -L "$archive.sha256" ]]; then
       echo "未找到本次下载文件，跳过：$archive"; archive=''
     fi
@@ -320,13 +346,13 @@ cleanup(){
     else echo "保留异常版本目录：$folder"; fi
   done < <(if [[ -d "$base/releases" ]]; then find "$base/releases" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort; fi)
   if [[ -n "$package" ]]; then
-    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-source" && ! -e "$package/config" && ! -e "$package/data" ]] || die '只接受安装目录之外、本次版本的新解压源码包。'
+    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-$kind" && ! -e "$package/config" && ! -e "$package/data" ]] || die '只接受安装目录之外、本次版本的新解压部署包。'
     cleanup_tree "$package" && cleanup_tree "$base/releases/$current" || die '源码包或内部副本不完整，拒绝删除。'
     diff -qr -- "$package" "$base/releases/$current" >/dev/null || die '外部源码包与当前内部副本不一致，拒绝删除。'
     remove_dirs+=("$package")
   fi
   if [[ -n "$archive" ]]; then
-    [[ $archive != "$base"/* && $(basename -- "$archive") == "starlit-$current-source.tar.gz" && -f "$archive" && ! -L "$archive" && $(realpath -e -- "$archive") == "$archive" && -f "$archive.sha256" && ! -L "$archive.sha256" ]] || die '只接受安装目录外、本次版本的压缩包及校验文件。'
+    [[ $archive != "$base"/* && $(basename -- "$archive") == "starlit-$current-$kind.tar.gz" && -f "$archive" && ! -L "$archive" && $(realpath -e -- "$archive") == "$archive" && -f "$archive.sha256" && ! -L "$archive.sha256" ]] || die '只接受安装目录外、本次版本的压缩包及校验文件。'
     cleanup_archive_source "$current" || die '当前版本源码未通过校验，拒绝清理下载包。'
     hash=$(sha256sum -- "$archive"); hash=${hash%% *}
     [[ $(cat -- "$archive.sha256") == "$hash  $(basename -- "$archive")" ]] || die '压缩包校验不通过，保留文件以便排查。'

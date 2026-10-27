@@ -50,9 +50,15 @@ export async function release(args){
   if(checkOnly){console.info('\n验收通过：'+path.join(work,'verification.json'));return;}
   const staging=await mkdtemp(path.join(parent,'deploy-'));
   const directory=await prepareBundle(staging,{version,includeImages});
+  let imageVerification;
+  if(includeImages){
+    await execute(['node','scripts/verify-image-bundle.mjs',directory],'image-smoke');
+    imageVerification=JSON.parse(await readFile(path.join(parent,'image-smoke.json'),'utf8'));
+    if(!imageVerification.passed)throw new Error('镜像运行检查未通过。');
+  }
   if(await inputFingerprint()!==evidence.sourceFingerprint)throw new Error('打包期间源码发生变化，未生成部署压缩包。请重新验收。');
   const sourceManifest=await readFile(path.join(directory,'SHA256SUMS'));
-  const info={version,builtAt:new Date().toISOString(),bundleFingerprint:createHash('sha256').update(sourceManifest).digest('hex'),...evidence};
+  const info={version,builtAt:new Date().toISOString(),bundleFingerprint:createHash('sha256').update(sourceManifest).digest('hex'),...evidence,...(imageVerification?{imageVerification}:{})};
   await writeFile(path.join(directory,'RELEASE.json'),JSON.stringify(info,null,2)+'\n');
   await manifest(directory);
   const archive=directory+'.tar.gz';

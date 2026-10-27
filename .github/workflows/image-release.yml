@@ -1,0 +1,66 @@
+name: Build complete image deployment bundle
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New release version (without v)
+        required: true
+        default: 1.0.0-rc.2
+permissions:
+  contents: write
+concurrency:
+  group: image-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Check new version and build environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module -e "import {validateVersion} from './scripts/package-deploy.mjs'; validateVersion(process.env.RELEASE_VERSION)"
+          if gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then echo 'Release already exists'; exit 1; fi
+          docker info
+          docker compose version
+          "$CHROME_PATH" --version
+      - run: npm ci --no-audit --no-fund
+      - name: Verify, build all images, smoke test and package
+        run: npm run package:deploy -- --version="$RELEASE_VERSION" --images
+      - name: Prepare release attachments
+        run: |
+          node --input-type=module <<'JS'
+          import {readFile,copyFile,mkdir,writeFile} from 'node:fs/promises';
+          import path from 'node:path';
+          const v=process.env.RELEASE_VERSION;
+          const record=JSON.parse(await readFile(`artifacts/releases/${v}.json`));
+          await mkdir('artifacts/delivery');
+          for(const file of [record.archive,record.archive+'.sha256'])await copyFile(file,path.join('artifacts/delivery',path.basename(file)));
+          const bundle=record.archive.replace(/\.tar\.gz$/,'');
+          for(const file of ['INSTALLATION.md','RELEASE_NOTES.md','RELEASE.json'])await copyFile(path.join(bundle,file),path.join('artifacts/delivery',file));
+          await writeFile('artifacts/delivery/RELEASE_BODY.md',(await readFile(path.join(bundle,'RELEASE_NOTES.md'),'utf8'))+'\n\nSHA256: `'+record.sha256+'`\n');
+          JS
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$RELEASE_VERSION" artifacts/delivery/*.tar.gz artifacts/delivery/*.sha256 artifacts/delivery/INSTALLATION.md artifacts/delivery/RELEASE.json --target "$GITHUB_SHA" --title "星遇 $RELEASE_VERSION · 完整镜像部署包" --notes-file artifacts/delivery/RELEASE_BODY.md --prerelease
+      - name: Keep failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-release-diagnostics
+          path: |
+            artifacts/release-check-*/verification.json
+            artifacts/release-check-*/FAILED.txt
+            artifacts/image-smoke.json
+          if-no-files-found: ignore

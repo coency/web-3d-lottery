@@ -6,9 +6,9 @@
 
 从 [Releases](https://github.com/coency/web-3d-lottery/releases) 下载部署压缩包、SHA256 校验文件和 `INSTALLATION.md`，按[部署流程步骤](docs/部署流程步骤.md)操作。
 
-当前部署版本为 **v1.0.0-rc.1（预发布）**，以 2026-10-22 的完整代码重新编号。升级成功且检查通过后，自动清理本次上传包、校验文件和新解压目录，保留运行目录、配置、数据、备份及内部版本副本。
+当前部署版本为 **v1.0.0-rc.2（预发布）**，提供包含应用、网站入口和数据库镜像的完整部署包。升级成功且检查通过后，自动清理本次上传包、校验文件和新解压目录，保留运行目录、配置、数据、备份及内部版本副本。
 
-服务器部署请使用命名为 `starlit-版本-source.tar.gz` 的附件。仓库源码用于开发、测试和重新打包，不能直接当作已整理好的安装目录执行。
+服务器部署请使用命名为 `starlit-版本-images.tar.gz` 的附件。仓库源码用于开发、测试和重新打包，不能直接当作已整理好的安装目录执行。
 
 ## 功能
 
@@ -81,6 +81,6 @@ npm run build
 - [2000 人模拟测试](docs/2000人服务器测试.md)
 - [当前部署包更新内容](docs/部署包更新说明.md)
 
-后续发布须使用新版本号，例如 `npm run package:deploy -- --version=1.0.0-rc.2`。部署包保存在本地 `artifacts/`，上传到 GitHub Releases，不提交进源码仓库。
+后续发布须使用新版本号，例如 `npm run package:deploy -- --version=1.0.0-rc.3 --images`，或通过 GitHub Actions 的 Build complete image deployment bundle 工作流构建。部署包保存在本地 `artifacts/`，上传到 GitHub Releases，不提交进源码仓库。
 
 请勿提交 `.env`、`.local/`、生产配置、数据库、上传文件、证书或备份。示例配置见 `.env.example`，运行数据和生成产物已加入 `.gitignore`。

@@ -60,7 +60,7 @@ async function fixture({configured=true}={}){
     content=content.replace(/^\[\[ .*\$EUID.*$/m,': # host/root prerequisite satisfied by harness');
     content=content.replace('. /etc/os-release','. "$MOCK_OS_RELEASE"');
     // Keep /root downloads inside this isolated fixture as well.
-    content=content.replaceAll('archive="/root/starlit-$current-source.tar.gz"','archive="$MOCK_DOWNLOADS/starlit-$current-source.tar.gz"');
+    content=content.replaceAll('archive="/root/','archive="$MOCK_DOWNLOADS/');
     await writeFile(path.join(folder,file),content);
   }
   for(const file of ['release.env','compose.yaml'])await copyFile(path.join(root,'deploy/container',file),path.join(folder,file));
@@ -278,16 +278,20 @@ test('package preserves migration bytes and excludes host credentials/data',asyn
 });
 
 const releaseText=version=>`RELEASE_VERSION=${version}\nAPP_IMAGE=starlit-app:${version}\nGATEWAY_IMAGE=starlit-gateway:${version}\n`;
-async function automaticDownloadFixture(){
+async function automaticDownloadFixture(kind='source'){
   const f=await fixture(),next=await fixture({configured:false});
   await writeFile(path.join(f.folder,'release.env'),releaseText('1.0.0-rc.5'));
   await writeFile(path.join(next.folder,'release.env'),releaseText('1.0.0-rc.6'));
+  if(kind==='images'){
+    await writeFile(path.join(next.folder,'images.tar'),'mock image archive');
+    await writeFile(path.join(next.folder,'release.env'),releaseText('1.0.0-rc.6')+'BUNDLE_KIND=images\n');
+  }
   await manifest(next.folder);
   const downloads=path.join(f.folder,'downloads');await mkdir(downloads);
   const staged=await mkdtemp(path.join(scratch,'archive-input-'));
-  await cp(next.folder,path.join(staged,'starlit-1.0.0-rc.6-source'),{recursive:true});
-  const archive=path.join(downloads,'starlit-1.0.0-rc.6-source.tar.gz');
-  success(spawnSync('tar',['-czf',archive,'-C',staged,'starlit-1.0.0-rc.6-source'],{encoding:'utf8'}));
+  await cp(next.folder,path.join(staged,'starlit-1.0.0-rc.6-'+kind),{recursive:true});
+  const archive=path.join(downloads,'starlit-1.0.0-rc.6-'+kind+'.tar.gz');
+  success(spawnSync('tar',['-czf',archive,'-C',staged,'starlit-1.0.0-rc.6-'+kind],{encoding:'utf8'}));
   const hash=createHash('sha256').update(await readFile(archive)).digest('hex');
   await writeFile(archive+'.sha256',hash+'  '+path.basename(archive)+'\n');
   return {...f,next,archive,env:{MOCK_CLEANUP:'1',MOCK_CURRENT_VERSION:'1.0.0-rc.6'}};
@@ -312,14 +316,34 @@ shellTest('automatic download removal never runs after migration or HTTPS failur
     assert.doesNotMatch(result.stdout,/已自动删除本次上传文件/);
   }
 });
-async function automaticPackageFixture(){
-  const f=await automaticDownloadFixture();
+async function automaticPackageFixture(kind='source'){
+  const f=await automaticDownloadFixture(kind);
   const parent=await mkdtemp(path.join(scratch,'extracted-'));
-  const folder=path.join(parent,'starlit-1.0.0-rc.6-source');
+  const folder=path.join(parent,'starlit-1.0.0-rc.6-'+kind);
   await cp(f.next.folder,folder,{recursive:true});
   f.next={...f.next,folder};
   return f;
 }
+shellTest('image upgrade imports bundled images and cleans only its verified downloads and extracted directory',async()=>{
+  const f=await automaticPackageFixture('images');
+  const unrelated=path.join(f.folder,'downloads/starlit-1.0.0-rc.6-source.tar.gz');await writeFile(unrelated,'keep');
+  success(execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_IMAGE_MISSING:'1'}}));
+  assert.ok(!existsSync(f.archive));assert.ok(!existsSync(f.archive+'.sha256'));assert.ok(!existsSync(f.next.folder));
+  assert.ok(existsSync(unrelated));assert.ok(existsSync(path.join(f.folder,'releases/1.0.0-rc.6/images.tar')));
+  assert.equal(await readFile(path.join(f.folder,'data/uploads/avatar.txt'),'utf8'),'avatar-data');
+  assert.match(await log(f),/load -i .*images.tar/);assert.doesNotMatch(await log(f),/\b(build|pull)\b/);
+});
+shellTest('image upgrade retains downloads and extracted files when migration fails',async()=>{
+  const f=await automaticPackageFixture('images');
+  const result=execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_MIGRATION_FAIL:'1'}});
+  assert.notEqual(result.status,0);assert.ok(existsSync(f.archive));assert.ok(existsSync(f.next.folder));
+});
+shellTest('image bundle refuses missing payload and reuses images already imported',async()=>{
+  const f=await fixture();await writeFile(path.join(f.folder,'release.env'),releaseText('1.0.0-rc.6')+'BUNDLE_KIND=images\n');
+  assert.notEqual(execute(f,['start']).status,0);
+  await writeFile(path.join(f.folder,'images.tar'),'mock');
+  success(execute(f,['start']));assert.doesNotMatch(await log(f),/load -i|\bbuild\b|\bpull\b/);
+});
 shellTest('successful upgrade removes its extracted package even without uploaded archive',async()=>{
   const f=await automaticPackageFixture();
   const result=execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_DOWNLOADS:posix(path.join(f.folder,'absent'))}});success(result);

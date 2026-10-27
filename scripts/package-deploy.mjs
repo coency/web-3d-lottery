@@ -66,6 +66,7 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
     if(!(await lstat(source)).isFile())throw new Error(`只允许普通文件：${relative}`);
     await mkdir(path.dirname(destination),{recursive:true});
     if(relative.endsWith('.sh'))await writeFile(destination,(await readFile(source,'utf8')).replace(/\r\n/g,'\n'));
+    else if(relative.startsWith('docs/'))await writeFile(destination,(await readFile(source,'utf8')).replaceAll('starlit-1.0.0-rc.2-images',`starlit-${version}-${kind}`));
     else await copyFile(source,destination);
   };
   for(const file of deployFiles)await copy(`deploy/container/${file}`,path.join(directory,file));
@@ -86,7 +87,7 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
     sourceDigest.update(path.relative(path.join(directory,'source'),file).split(path.sep).join('/')+'\0'+await hashFile(file)+'\n');
   }
   const imageTag=version+'-'+sourceDigest.digest('hex').slice(0,12);
-  await writeFile(path.join(directory,'release.env'),`RELEASE_VERSION=${version}\nAPP_IMAGE=starlit-app:${imageTag}\nGATEWAY_IMAGE=starlit-gateway:${imageTag}\n`);
+  await writeFile(path.join(directory,'release.env'),`RELEASE_VERSION=${version}\nBUNDLE_KIND=${kind}\nAPP_IMAGE=starlit-app:${imageTag}\nGATEWAY_IMAGE=starlit-gateway:${imageTag}\n`);
   if(includeImages){
     run('docker',['info']);
     for(const target of ['app','gateway'])run('docker',['build','--platform','linux/amd64','--target',target,'-t',`starlit-${target}:${imageTag}`,'-f',path.join(directory,'source/deploy/container/Dockerfile'),path.join(directory,'source')]);
