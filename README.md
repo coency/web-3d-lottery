@@ -79,7 +79,7 @@ npm run build
 ## 发布与维护
 
 - [部署说明：安装、升级、备份和清理](docs/部署说明.md)
-- [2000 人模拟测试](docs/2000人服务器测试.md)
+- [2000 人模拟测试](docs/开发与测试.md#2000-人服务器测试)
 - [版本更新说明与下载](https://github.com/coency/web-3d-lottery/releases)
 
 后续发布须使用新版本号，例如 `npm run package:deploy -- --version=1.0.0-rc.3 --images`，或通过 GitHub Actions 的 Build complete image deployment bundle 工作流构建。部署包保存在本地 `artifacts/`，上传到 GitHub Releases，不提交进源码仓库。

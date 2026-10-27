@@ -13,7 +13,7 @@ const files=['.dockerignore','package.json','package-lock.json','tsconfig.base.j
   'scripts/account.mjs','scripts/check-production.mjs','scripts/lib/migrations.mjs',
   'deploy/container/Dockerfile','deploy/container/Caddyfile','deploy/container/runtime.mjs'];
 const deployFiles=['install.sh','engine.sh','starlit.sh','compose.yaml'];
-const documents=['docs/部署说明.md','docs/2000人服务器测试.md'];
+const documents=['docs/部署说明.md','docs/开发与测试.md'];
 export function validateVersion(version){
   if(typeof version!=='string'||!/^\d+\.\d+\.\d+(?:-[a-z0-9]+(?:\.[a-z0-9]+)*)?$/.test(version))throw new Error('无效版本号；请显式指定 --version，例如 --version=1.0.0-rc.8');
   return version;
@@ -67,12 +67,12 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
     if(!(await lstat(source)).isFile())throw new Error(`只允许普通文件：${relative}`);
     await mkdir(path.dirname(destination),{recursive:true});
     if(relative.endsWith('.sh'))await writeFile(destination,(await readFile(source,'utf8')).replace(/\r\n/g,'\n'));
-    else if(relative.startsWith('docs/'))await writeFile(destination,(await readFile(source,'utf8')).replaceAll('starlit-1.0.0-rc.2-images',`starlit-${version}-${kind}`));
+    else if(relative.startsWith('docs/'))await writeFile(destination,(await readFile(source,'utf8')).replaceAll('starlit-1.0.0-rc.2-images',`starlit-${version}-${kind}`).replaceAll('(部署说明.md)','(INSTALLATION.md)'));
     else await copyFile(source,destination);
   };
   for(const file of deployFiles)await copy(`deploy/container/${file}`,path.join(directory,file));
   await copy('docs/部署说明.md',path.join(directory,'INSTALLATION.md'));
-  await copy('docs/2000人服务器测试.md',path.join(directory,'TESTING.md'));
+  await copy('docs/开发与测试.md',path.join(directory,'TESTING.md'));
   const sourceFiles=[...files];
   for(const sub of directories)for(const full of await walk(path.join(root,sub)))sourceFiles.push(path.relative(root,full));
   for(const file of sourceFiles){

@@ -244,6 +244,11 @@ test('package preserves migration bytes and excludes host credentials/data',asyn
   assert.ok(all.includes('source/apps/api/src/main.ts'));assert.ok(all.includes('install.sh'));
   assert.ok(all.includes('INSTALLATION.md'));
   assert.ok(all.includes('TESTING.md'));
+  const testingGuide=await readFile(path.join(directory,'TESTING.md'),'utf8');
+  assert.match(testingGuide,/## 本地启动/);
+  assert.match(testingGuide,/## 2000 人服务器测试/);
+  assert.match(testingGuide,/\[部署说明\]\(INSTALLATION\.md\)/);
+  assert.doesNotMatch(testingGuide,/\(部署说明\.md\)/);
   assert.ok(!all.some(file=>['README.md','CLEANUP.md','RELEASE_NOTES.md'].includes(file)));
   const instructions=await readFile(path.join(directory,'INSTALLATION.md'),'utf8');
   assert.match(instructions,/starlit-1\.0\.0-test\.1-source\.tar\.gz/);
