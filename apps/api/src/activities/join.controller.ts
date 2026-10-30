@@ -1,3 +1,4 @@
+import {publishedMaterials,materialImage} from './materials';
 import { Controller,Get,Post,Param,Req,Res,HttpCode } from '@nestjs/common';
 import type { Request,Response } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -66,6 +67,16 @@ export class DevelopmentJoinController {
    return joinPerson(c,p,cfg.form);
   }),res);
  }
+ private async materials(req:Request,res:Response,id:string,imageId?:string){
+  return this.db.transaction(async c=>{
+   const {a,run}=await this.context(c,id),identity=this.identity(req,res,id,run.generation);
+   const person=await c.query('SELECT 1 FROM activity_participants WHERE run_id=$1 AND generation=$2 AND identity_key=$3',[run.id,run.generation,identity]);
+   if(!person.rowCount)fail(403,'CHECKIN_REQUIRED','请先完成签到');
+   return imageId?materialImage(c,a,imageId):publishedMaterials(c,id,'/api/v1/dev-join/'+id);
+  });
+ }
+ @Get('materials') async getMaterials(@Param('id') id:string,@Req() req:Request,@Res({passthrough:true}) res:Response){res.setHeader('Cache-Control','no-store');return envelope(await this.materials(req,res,id),res);}
+ @Get('materials/images/:imageId') async getMaterialImage(@Param('id') id:string,@Param('imageId') imageId:string,@Req() req:Request,@Res() res:Response){res.setHeader('Cache-Control','no-store');res.type('image/webp').send(await this.materials(req,res,id,imageId));}
  @Get('image/:kind')
  async image(@Param('id') id:string,@Param('kind') kind:string,@Res() res:Response){
   const key=await this.db.transaction(async c=>{

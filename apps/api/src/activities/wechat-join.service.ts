@@ -1,3 +1,4 @@
+import {publishedMaterials,materialImage} from './materials';
 import {Injectable} from '@nestjs/common';
 import type {Request,Response} from 'express';
 import type {PoolClient} from 'pg';
@@ -66,6 +67,15 @@ export class WechatJoinService {
    form:x.cfg.form,person:await joinPerson(c,p,x.cfg.form),authenticated:!!session,profile:session?{nickname:session.nickname,avatarUrl:session.avatar_id?base+'/avatar/'+session.avatar_id:'/avatar-placeholder.svg'}:null,
    authorizationAvailable:oauthReady()&&!!x.credential,requiresWechat:x.provider==='wechat'&&!/MicroMessenger/i.test(req.get('user-agent')??'')};
  });}
+ async materials(req:Request,code:string,imageId?:string){
+  return this.db.transaction(async c=>{
+   const x=await this.context(c,code),session=await this.session(c,req,x);
+   if(!session)fail(401,'PARTICIPANT_AUTH_REQUIRED','身份已过期，请重新授权');
+   const person=await c.query('SELECT 1 FROM activity_participants WHERE run_id=$1 AND generation=$2 AND identity_key=$3',[x.run.id,x.run.generation,session.identity_key]);
+   if(!person.rowCount)fail(403,'CHECKIN_REQUIRED','请先完成签到');
+   return imageId?materialImage(c,x.activity,imageId):publishedMaterials(c,x.activity.id,'/api/v1/join/'+code);
+  });
+ }
  async start(req:Request,res:Response,code:string){
   validateWrite(req);object(req.body,[]);await this.auth.rate('wechat-start',req.ip??'unknown',12000,60);
   if(!oauthReady())fail(503,'WECHAT_NOT_READY','微信授权尚未启用，请联系主办方完成接入');

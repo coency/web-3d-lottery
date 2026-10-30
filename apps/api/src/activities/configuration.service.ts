@@ -1,3 +1,4 @@
+import {materialsInput,readMaterials,writeMaterials} from './materials';
 import {SimulationPortraitService} from './simulation-portraits';
 import { isDeepStrictEqual } from 'node:util';
 import { Injectable } from '@nestjs/common';
@@ -39,13 +40,15 @@ export class ConfigurationService{
   const participants=(await c.query("SELECT p.id,p.nickname,p.eligible FROM activity_participants p JOIN activity_runs r ON r.id=p.run_id WHERE p.activity_id=$1 AND r.mode=$2 AND EXISTS(SELECT 1 FROM designated_reservations d WHERE d.participant_id=p.id AND d.status='reserved') ORDER BY p.created_at,p.id",[id,activity.phase])).rows;
   const reservations=(await c.query("SELECT d.prize_id,d.participant_id FROM designated_reservations d JOIN activity_runs r ON r.id=d.run_id WHERE d.activity_id=$1 AND r.mode=$2 AND d.status='reserved'",[id,activity.phase])).rows;
   const lockedPrizeIds=(await c.query('SELECT DISTINCT d.prize_id FROM draw_rounds d JOIN activity_runs r ON r.id=d.run_id WHERE d.activity_id=$1 AND r.mode=$2',[id,activity.phase])).rows.map(r=>r.prize_id);
-  return {...config,lockedPrizeIds,participants,reservations,version:activity.version,name:activity.name,phase:activity.ended?'expired':activity.phase,firstFormalStarted:!!activity.first_formal_started_at,runs,wechatVerified:verified};
+  const materials=await readMaterials(c,id);
+  return {...config,materials:{...materials,images:materials.images.map(image=>({...image,url:'/api/v1/assets/'+image.id+'/content'}))},lockedPrizeIds,participants,reservations,version:activity.version,name:activity.name,phase:activity.ended?'expired':activity.phase,firstFormalStarted:!!activity.first_formal_started_at,runs,wechatVerified:verified};
  });}
  async save(req:Request,id:string,section:'form'|'rule'|'prizes'|'checkin'|'prize-settings'){
   validateWrite(req);
   const body=object(req.body,['value','confirmed','reason']);
   if(body.confirmed!==undefined&&typeof body.confirmed!=='boolean')fail(422,'INVALID_CONFIRMATION','确认信息不正确');
-  const bundle=section==='checkin'?object(body.value,['form','h5BackgroundAssetId','showBackground']):section==='prize-settings'?object(body.value,['rule','prizes','reservations']):null;
+  const bundle=section==='checkin'?object(body.value,['form','h5BackgroundAssetId','showBackground','materials']):section==='prize-settings'?object(body.value,['rule','prizes','reservations']):null;
+  const materials=section==='checkin'&&bundle!.materials!==undefined?materialsInput(bundle!.materials):null;
   const form=section==='form'?formInput(body.value):section==='checkin'?formInput(bundle!.form):null;
   const rule=section==='rule'?ruleInput(body.value):section==='prize-settings'?ruleInput(bundle!.rule):null;
   const prizes=section==='prizes'?prizesInput(body.value):section==='prize-settings'?prizesInput(bundle!.prizes):null;
@@ -96,6 +99,7 @@ export class ConfigurationService{
      }
      await c.query("UPDATE activities SET h5_background_asset_id=$2,display=jsonb_set(display,'{h5Background}',$3::jsonb) WHERE id=$1",[id,bundle!.h5BackgroundAssetId,JSON.stringify(bundle!.showBackground)]);
     }
+    if(materials)await writeMaterials(c,id,user.id,materials);
     if(section==='prize-settings'){
      const input=bundle!.reservations;
      if(!Array.isArray(input)||input.length>200)fail(422,'INVALID_RESERVATIONS','指定名单不正确');

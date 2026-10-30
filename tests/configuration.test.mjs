@@ -53,12 +53,12 @@ test('prize themes default legacy data and reject unavailable renderers',()=>{
  rejects(()=>prizesInput([{...p,theme:'unavailable'}]));
 });
 
-test('numeric signup fields validate and preserve decimal precision',()=>{
+test('numeric signup fields accept only integers and preserve large values and leading zeros',()=>{
  const field={id:randomUUID(),name:'数字',type:'number',required:false,hint:'',options:[]};
  const form=formInput({fields:[field],titleFieldId:null,auxiliaryFieldIds:[]});
  assert.deepEqual(validateAnswers(form,{}),{});
- for(const value of ['0','18','-2','1.25','.5','9007199254740993'])assert.equal(validateAnswers(form,{[field.id]:value})[field.id],value);
- for(const value of ['abc','1e3','Infinity','NaN','12岁','1.2.3'])rejects(()=>validateAnswers(form,{[field.id]:value}));
+ for(const value of ['0','18','-2','+3','0018','9007199254740993'])assert.equal(validateAnswers(form,{[field.id]:value})[field.id],value);
+ for(const value of ['abc','1e3','Infinity','NaN','12岁','1.2.3','1.25','.5','1.0','-0.5','+','--1'])rejects(()=>validateAnswers(form,{[field.id]:value}));
  rejects(()=>formInput({fields:[{...field,options:[{id:randomUUID(),label:'不应有选项'}]}],titleFieldId:null,auxiliaryFieldIds:[]}));
  rejects(()=>validateAnswers({...form,fields:[{...field,required:true}]},{}));
 });

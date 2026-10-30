@@ -1,5 +1,6 @@
 // Explicit display allowlist: never return the stored JSON payload to the browser.
 export const auditActions:Record<string,{title:string;category:string}>={
+ materials_updated:{title:'更新活动资料',category:'settings'},
  activity_created:{title:'创建活动',category:'settings'},activity_updated:{title:'修改基本信息',category:'settings'},
  checkin_settings_updated:{title:'修改签到背景',category:'settings'},asset_uploaded:{title:'上传图片',category:'settings'},
  configuration_form:{title:'修改签到字段',category:'settings'},configuration_checkin:{title:'保存签到设置',category:'settings'},

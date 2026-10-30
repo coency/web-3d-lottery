@@ -149,7 +149,8 @@ export class ActivitiesService {
 
  async authorizeUpload(req:Request){
   validateWrite(req);const b=object(req.body,['purpose','activityId']);
-  if(!['activity_logo','h5_background','stage_background'].includes(String(b.purpose))||(b.activityId!==null&&!uuid(b.activityId)))fail(422,'INVALID_UPLOAD','图片用途不正确');
+  if(!['activity_logo','h5_background','stage_background','activity_material'].includes(String(b.purpose))||(b.activityId!==null&&!uuid(b.activityId)))fail(422,'INVALID_UPLOAD','图片用途不正确');
+  if(b.purpose==='activity_material'&&!b.activityId)fail(422,'INVALID_UPLOAD','请先选择资料所属的活动');
   return this.db.transaction(async c=>{
    const user=await this.identity(c,req);
    return this.receipt(c,user.id,req,'upload-authorize',b,async()=>{
@@ -178,7 +179,7 @@ export class ActivitiesService {
   const originalHash=createHash('sha256').update(input).digest('hex');
   const {row}=await this.db.transaction(c=>this.uploadAccess(c,req,id));
   const max=(row.purpose==='activity_logo'?5:10)*1024*1024;
-  if(input.length>max)fail(422,'IMAGE_TOO_LARGE','Logo 最大 5MB，背景最大 10MB');
+  if(input.length>max)fail(422,'IMAGE_TOO_LARGE','Logo 最大 5MB，背景和资料图片最大 10MB');
   if(row.status==='ready'){
    if(row.content_hash!==originalHash)fail(409,'ASSET_IMMUTABLE','已上传图片不可覆盖，请重新上传');
    return {id:row.id,url:'/api/v1/assets/'+id+'/content'};

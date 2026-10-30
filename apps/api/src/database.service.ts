@@ -16,7 +16,7 @@ export class DatabaseService implements OnApplicationShutdown {
     const { rows } = await this.pool.query<{version: string; installed_at: Date; database_time: Date}>(
       `SELECT version, installed_at, clock_timestamp() AS database_time FROM schema_migrations ORDER BY version DESC LIMIT 1`);
     const row = rows[0];
-    if (!row || row.version !== '020_roster_revisions.sql') throw new Error('Database schema is not ready');
+    if (!row || row.version !== '021_activity_materials.sql') throw new Error('Database schema is not ready');
     return { service: 'starlit-api', database: 'connected', databaseTime: row.database_time.toISOString(),
       schemaVersion: row.version, installedAt: row.installed_at.toISOString() };
   }

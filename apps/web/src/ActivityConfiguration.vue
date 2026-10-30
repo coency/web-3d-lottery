@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import SignupFields from './SignupFields.vue';
+import ActivityMaterialsSettings from './ActivityMaterialsSettings.vue';
+import SignupSuccess from './SignupSuccess.vue';
+import MaterialsGallery from './MaterialsGallery.vue';
+import {safeMaterialLink,type ActivityMaterials} from './materials';
+const materialsSettings=ref<InstanceType<typeof ActivityMaterialsSettings>|null>(null),materialsUploading=ref(false);
+const materialsPreview=ref<ActivityMaterials|null>(null),previewMaterialsOpen=ref(false);
+function openMaterialsPreview(){if(materialsPreview.value?.type==='images')previewMaterialsOpen.value=true;else if(materialsPreview.value?.type==='link'){const url=safeMaterialLink(materialsPreview.value.link);if(url)window.open(url,'_blank','noopener,noreferrer');}}
+
 import {showNotice} from './notices';
 const previewFields=ref<InstanceType<typeof SignupFields>|null>(null);
-function previewSignup(){const issue=previewFields.value?.validate();showNotice(issue||'这是实时外观预览，不会提交签到',issue?'warning':'info');}
+function previewSignup(){const issue=previewFields.value?.validate();if(!issue)showNotice('这是实时外观预览，不会提交签到','info');}
 import {ElTabs,ElTabPane,ElAlert} from 'element-plus';
 import 'element-plus/es/components/alert/style/css';
 import 'element-plus/es/components/tabs/style/css';
@@ -22,7 +30,7 @@ import {ref,computed,watch,reactive,nextTick} from 'vue';
 import {get,write,RequestError} from './api';
 type Field={id:string;name:string;type:'text'|'number'|'single'|'multiple';hint:string;required:boolean;options:{id:string;label:string}[]};
 type Prize={id:string;name:string;total:number;batch:number;mode:string;theme:string};
-type Config={lockedPrizeIds:string[];version:string;phase:string;firstFormalStarted:boolean;wechatVerified:boolean;form:{fields:Field[];titleFieldId:string|null;auxiliaryFieldIds:string[];signupFieldIds:string[]};rule:{mode:string;maxWins:number|null};prizes:Prize[];participants:{id:string;nickname:string;eligible:boolean}[];reservations:{prize_id:string;participant_id:string}[];runs:{mode:string;generation:number;participants:number;simulated:number;rounds:number;awards:number;drawing:boolean}[]};
+type Config={materials:ActivityMaterials;lockedPrizeIds:string[];version:string;phase:string;firstFormalStarted:boolean;wechatVerified:boolean;form:{fields:Field[];titleFieldId:string|null;auxiliaryFieldIds:string[];signupFieldIds:string[]};rule:{mode:string;maxWins:number|null};prizes:Prize[];participants:{id:string;nickname:string;eligible:boolean}[];reservations:{prize_id:string;participant_id:string}[];runs:{mode:string;generation:number;participants:number;simulated:number;rounds:number;awards:number;drawing:boolean}[]};
 type Person={id:string;nickname:string;eligible:boolean};
 const queries=reactive<Record<string,string>>({}),results=reactive<Record<string,Person[]>>({}),searching=reactive<Record<string,boolean>>({}),totals=reactive<Record<string,number>>({});
 const checkinTab=ref('background'),prizeTab=ref('prizes'),modeTab=ref('cleanup');
@@ -31,7 +39,7 @@ const uuid=()=>crypto.randomUUID();
 const props=defineProps<{activityId:string;revision:string;activityName?:string;logoUrl?:string;backgroundUrl?:string;backgroundId?:string|null;showBackground?:boolean;uploading?:boolean;organizer?:string;section:'form'|'prizes'|'mode'}>();
 const emit=defineEmits<{changed:[];expired:[]}>();
 const data=ref<Config|null>(null),error=ref(''),message=ref(''),saving=ref(false),confirmation=ref(''),reason=ref(''),preview=ref(false),answers=ref<Record<string,string|string[]>>({}),dirty=ref(false);
-const locked=computed(()=>props.uploading||!data.value||data.value.phase==='expired'||saving.value||data.value.runs.some(r=>r.drawing));
+const locked=computed(()=>props.uploading||materialsUploading.value||!data.value||data.value.phase==='expired'||saving.value||data.value.runs.some(r=>r.drawing));
 const simulationCount=ref<number|undefined>(2000);
 const rehearsal=computed(()=>data.value?.runs.find(r=>r.mode==='rehearsal'));
 function fail(e:unknown){if(e instanceof RequestError&&e.status===401)emit('expired');error.value=e instanceof Error?e.message:'操作失败';}
@@ -40,16 +48,17 @@ watch(()=>props.activityId,load,{immediate:true});
 watch(()=>props.revision,version=>{if(data.value&&BigInt(version)>BigInt(data.value.version))data.value.version=version;});
 watch(()=>props.section,()=>{message.value='';error.value='';confirmation.value='';});
 async function save(section:'form'|'rule'|'prizes'){
- if(!data.value)return;
+ if(!data.value||locked.value)return;
+ if(section==='form'&&materialsSettings.value&&!materialsSettings.value.validate()){checkinTab.value='materials';await nextTick();materialsSettings.value.focusError();return;}
  if(section!=='form'){
   if(data.value.rule.mode==='max'&&(!Number.isInteger(data.value.rule.maxWins)||Number(data.value.rule.maxWins)<1)){error.value='请填写有效的整场最多中奖次数';return;}
   if(data.value.prizes.some(p=>!Number.isInteger(p.total)||p.total<1||!Number.isInteger(p.batch)||p.batch<1||p.batch>Math.min(p.total,10))){error.value='请填写有效奖项名额；每轮人数须为 1–10 人且不能超过总名额';return;}
  }
  saving.value=true;error.value='';message.value='';
  try{const path=section==='form'?'checkin':'prize-settings';
- const value=section==='form'?{form:data.value.form,h5BackgroundAssetId:props.backgroundId??null,showBackground:props.showBackground??true}:{rule:data.value.rule,prizes:data.value.prizes,reservations:data.value.prizes.filter(p=>p.mode!=='random').map(p=>({prizeId:p.id,participantIds:data.value!.reservations.filter(r=>r.prize_id===p.id).map(r=>r.participant_id)}))};
+ const value=section==='form'?{form:data.value.form,h5BackgroundAssetId:props.backgroundId??null,showBackground:props.showBackground??true,materials:{buttonText:data.value.materials.buttonText.trim(),type:data.value.materials.type,link:data.value.materials.type==='link'?data.value.materials.link:'',images:data.value.materials.type==='images'?data.value.materials.images.map(({id,name})=>({id,name})):[]}}:{rule:data.value.rule,prizes:data.value.prizes,reservations:data.value.prizes.filter(p=>p.mode!=='random').map(p=>({prizeId:p.id,participantIds:data.value!.reservations.filter(r=>r.prize_id===p.id).map(r=>r.participant_id)}))};
  await write('/api/v1/activities/'+props.activityId+'/configuration/'+path,'PUT',{value,...(section!=='form'&&data.value.firstFormalStarted?{confirmed:true,reason:reason.value}:{})},{'If-Match':String(data.value.version)});await load();message.value='配置已保存';emit('changed');}
- catch(e){fail(e);}finally{saving.value=false;}
+ catch(e){if(section==='form'&&e instanceof RequestError){if(e.code==='INVALID_MATERIALS'||(e.code==='ASSET_REJECTED'&&e.message.includes('资料')))checkinTab.value='materials';else if(e.code==='ASSET_REJECTED'||e.code==='INVALID_SETTINGS')checkinTab.value='background';else if(e.code==='INVALID_CONFIGURATION'||e.code==='INVALID_TEXT'||e.code==='INVALID_FIELDS')checkinTab.value='fields';}fail(e);}finally{saving.value=false;}
 }
 function addField(){data.value?.form.fields.push({id:crypto.randomUUID(),name:'',type:'text',hint:'',required:false,options:[]});dirty.value=true;}
 function changeType(f:Field){f.options=f.type!=='single'?[]:[{id:crypto.randomUUID(),label:''}];dirty.value=true;}
@@ -88,7 +97,7 @@ async function mode(){if(!data.value||!rehearsal.value)return;saving.value=true;
 <ElTabs v-model="checkinTab" class="checkin-tabs"><ElTabPane label="签到页背景" name="background"><fieldset class="background-slot" :disabled="locked"><slot name="background" /></fieldset></ElTabPane><ElTabPane name="fields"><template #label>签到字段 <span class="field-count">{{data.form.fields.length}} / 3</span></template><fieldset class="field-settings" :disabled="locked||data.firstFormalStarted"><p class="field-intro">最多添加 3 个字段，每个名称最多 8 个字；修改即时同步到右侧预览。</p><div v-if="!data.form.fields.length" class="empty-note">还没有附加字段，参与者只需使用微信头像和昵称签到。</div>
 <article v-for="(f,i) in data.form.fields" :key="f.id">
 <div class="row tw:flex tw:items-center tw:gap-3 tw:flex-wrap"><strong>字段 {{i+1}}</strong><ElButton @click="move(i,-1)" :disabled="(locked||data.firstFormalStarted)||(i===0)" native-type="button">上移</ElButton><ElButton @click="move(i,1)" :disabled="(locked||data.firstFormalStarted)||(i===data.form.fields.length-1)" native-type="button">下移</ElButton><ElButton @click="removeField(f.id)" :disabled="(locked||data.firstFormalStarted)" native-type="button">删除字段</ElButton></div>
-<div class="field-definition-row"><label>名称<ElInput aria-label="字段名称" v-model="f.name" maxlength="8" required :disabled="(locked||data.firstFormalStarted)" /><small>{{f.name.length}} / 8 字</small></label><label>类型<ElSelect v-model="f.type" @change="changeType(f)" :disabled="(locked||data.firstFormalStarted)" aria-label="类型"><ElOption value="text" :disabled="(locked||data.firstFormalStarted)" label="单行文本" /><ElOption value="number" label="数字（整数、小数、负数）" /><ElOption value="single" :disabled="(locked||data.firstFormalStarted)" label="下拉单选" /></ElSelect><small v-if="f.type==='number'">支持整数、小数、负数</small></label><div class="field-required"><span>必填</span><ElCheckbox v-model="f.required" aria-label="必填" :disabled="locked||data.firstFormalStarted" /></div></div>
+<div class="field-definition-row"><label>名称<ElInput aria-label="字段名称" v-model="f.name" maxlength="8" required :disabled="(locked||data.firstFormalStarted)" /><small>{{f.name.length}} / 8 字</small></label><label>类型<ElSelect v-model="f.type" @change="changeType(f)" :disabled="(locked||data.firstFormalStarted)" aria-label="类型"><ElOption value="text" :disabled="(locked||data.firstFormalStarted)" label="单行文本" /><ElOption value="number" label="数字（整数）" /><ElOption value="single" :disabled="(locked||data.firstFormalStarted)" label="下拉单选" /></ElSelect><small v-if="f.type==='number'">仅支持整数，含 0 和负数</small></label><div class="field-required"><span>必填</span><ElCheckbox v-model="f.required" aria-label="必填" :disabled="locked||data.firstFormalStarted" /></div></div>
 <div v-if="f.options.length" class="field-options-grid"><div v-for="(o,j) in f.options" :key="o.id" class="field-option"><label>选项 {{j+1}}<ElInput v-model="o.label" maxlength="100" required :disabled="(locked||data.firstFormalStarted)" aria-label="选项" /></label><ElButton @click="f.options.splice(j,1)" :disabled="(locked||data.firstFormalStarted)||(f.options.length<=1)" native-type="button">删除选项</ElButton></div></div>
 <ElButton v-if="f.type==='single'" :disabled="locked||data.firstFormalStarted||f.options.length>=50" native-type="button" @click="f.options.push({id:uuid(),label:''})">＋ 添加选项</ElButton>
 </article>
@@ -99,12 +108,12 @@ async function mode(){if(!data.value||!rehearsal.value)return;saving.value=true;
 <div class="winner-display signup-display"><h3>签到展示信息</h3><p>可选择多个字段，显示在手机签到成功页昵称下方；未填写的内容自动隐藏。</p>
 <ElCheckbox v-for="f in data.form.fields" :key="f.id" :model-value="data.form.signupFieldIds.includes(f.id)" :disabled="locked||data.firstFormalStarted" @change="checked=>{data!.form.signupFieldIds=data!.form.signupFieldIds.filter(id=>id!==f.id);if(checked)data!.form.signupFieldIds.push(f.id);dirty=true}">{{f.name||'未命名字段'}}</ElCheckbox>
 <p v-if="!data.form.fields.length">添加签到字段后可选择展示信息。</p><p>删除字段或更改类型后，已有签到资料仍保留原版本信息。</p></div>
-</fieldset></ElTabPane></ElTabs><div class="save-bar tw:flex tw:items-center tw:justify-between tw:gap-3"><small>背景、签到字段与展示信息一起保存</small><ElButton class="primary" :disabled="locked" native-type="submit" type="primary">{{saving?'保存中…':'保存'}}</ElButton></div></ElForm>
-</div><div class="phone-dock"><div class="preview-caption">手机实时预览 <small>修改即时呈现，保存后生效</small></div>
-<div class="phone"><div class="phone-screen" :style="showBackground&&backgroundUrl?{backgroundImage:'linear-gradient(#11142d33,#11142daa),url('+backgroundUrl+')'}:{}">
+</fieldset></ElTabPane><ElTabPane label="活动资料" name="materials"><ActivityMaterialsSettings ref="materialsSettings" :activity-id="activityId" :model-value="data.materials" :disabled="locked" @busy="materialsUploading=$event" @expired="emit('expired')" @preview="materialsPreview=$event;previewMaterialsOpen=false"/></ElTabPane></ElTabs><div class="save-bar tw:flex tw:items-center tw:justify-between tw:gap-3"><small>背景、签到字段、展示信息与活动资料一起保存</small><ElButton class="primary" :disabled="locked" native-type="submit" type="primary">{{saving?'保存中…':'保存'}}</ElButton></div></ElForm>
+</div><div class="phone-dock"><div class="preview-caption">{{checkinTab==='materials'?(previewMaterialsOpen?'活动资料预览':'签到成功页预览'):'手机实时预览'}} <small>修改即时呈现，保存后生效</small></div>
+<div class="phone"><div class="phone-screen" :class="{'signup-result-surface':checkinTab==='materials'}" :style="showBackground&&backgroundUrl?{backgroundImage:'linear-gradient(#11162c66,#11162cbb),url('+backgroundUrl+')'}:{}">
 <div class="phone-status">9:41 <span>● ▰</span></div><div class="phone-bar">‹ <span>活动签到</span> ···</div>
-<div class="phone-content" :class="{'no-fields':!data.form.fields.length}"><div class="preview-profile"><img src="/avatar-placeholder.svg" alt="微信头像预览"><strong>微信昵称</strong></div><template v-if="data.form.fields.length"><SignupFields ref="previewFields" :fields="data.form.fields" preview/><ElButton class="phone-submit" native-type="button" @click="previewSignup">立即签到</ElButton></template>
-</div><small class="phone-organizer">{{organizer||'欢迎参加本场活动'}}</small></div></div><small>按 375 × 667 内容区设计；小屏和放大字体时可滚动。</small></div></div>
+<div class="phone-content" :class="{'no-fields':checkinTab!=='materials'&&!data.form.fields.length,'signup-result-layout':checkinTab==='materials'&&!previewMaterialsOpen}"><template v-if="checkinTab==='materials'"><MaterialsGallery v-if="previewMaterialsOpen&&materialsPreview?.type==='images'" :materials="materialsPreview" @back="previewMaterialsOpen=false"/><SignupSuccess v-else :person="{nickname:'微信昵称',avatarUrl:'/avatar-placeholder.svg',displayFields:data.form.fields.filter(f=>data!.form.signupFieldIds.includes(f.id)).map(f=>({id:f.id,label:f.name||'未命名字段',value:'示例内容'}))}" :materials="materialsPreview" @open="openMaterialsPreview"/></template><template v-else><div class="preview-profile"><img src="/avatar-placeholder.svg" alt="微信头像预览"><strong>微信昵称</strong></div><template v-if="data.form.fields.length"><SignupFields ref="previewFields" :fields="data.form.fields" preview/><ElButton class="phone-submit" native-type="button" @click="previewSignup">立即签到</ElButton></template>
+</template></div><small class="phone-organizer">{{organizer||'欢迎参加本场活动'}}</small></div></div><small>按 375 × 667 内容区设计；小屏和放大字体时可滚动。</small></div></div>
 <template v-else-if="section==='prizes'">
 <ElForm @submit.prevent="data.firstFormalStarted?confirmation='rule':save('prizes')" @invalid.capture="revealInvalidField">
 <ElTabs v-model="prizeTab" class="settings-tabs"><ElTabPane label="奖项列表" name="prizes"><fieldset class="prize-panel" :disabled="locked"><div class="section-title"><h3>奖项列表 <small>{{data.prizes.length}} 个奖项 · 共 {{data.prizes.reduce((sum,p)=>sum+(Number(p.total)||0),0)}} 个名额</small></h3></div><div v-if="!data.prizes.length" class="empty-note">尚未添加奖项。先创建奖项，再设置名额和每轮人数。</div>

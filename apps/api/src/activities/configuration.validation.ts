@@ -56,7 +56,7 @@ export function validateAnswers(form:Form,value:unknown):Record<string,string|st
   const v=answers[f.id];
   const empty=v===undefined||v===null||v===''||(Array.isArray(v)&&!v.length);
   if(empty){if(f.required)invalid('请填写：'+f.name);continue;}
-  if(f.type==='number'){const number=text(v,200,true);if(!/^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/.test(number))invalid('请填写有效数字：'+f.name);result[f.id]=number;continue;}
+  if(f.type==='number'){const number=text(v,200,true);if(!/^[+-]?[0-9]+$/.test(number))invalid('请填写整数：'+f.name);result[f.id]=number;continue;}
   if(f.type==='text'){result[f.id]=text(v,200,f.required);continue;}
   const options=new Set(f.options.map(o=>o.id));
   if(f.type==='single'){if(typeof v!=='string'||!options.has(v))invalid('请选择有效选项：'+f.name);result[f.id]=v;}

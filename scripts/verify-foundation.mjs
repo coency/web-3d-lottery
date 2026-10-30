@@ -42,7 +42,7 @@ async function launchApi(environment) {
 try {
   database = await startLocalDatabase({ directory, port: dbPort });
   const parallel = await Promise.all([migrate(database.connectionString), migrate(database.connectionString)]);
-  assert.equal(parallel.flat().length, 20);
+  assert.equal(parallel.flat().length, 21);
   assert.deepEqual(await migrate(database.connectionString), []);
   pass('concurrent migration lock and repeated migration idempotency');
 
@@ -69,12 +69,13 @@ try {
   await copyFile(path.join(root, 'db/migrations/018_ten_person_rounds.sql'), path.join(fixture, '018_ten_person_rounds.sql'));
   await copyFile(path.join(root, 'db/migrations/019_wechat_readiness.sql'), path.join(fixture, '019_wechat_readiness.sql'));
   await copyFile(path.join(root, 'db/migrations/020_roster_revisions.sql'), path.join(fixture, '020_roster_revisions.sql'));
-  await writeFile(path.join(fixture, '021_failure.sql'), 'CREATE TABLE must_rollback (id integer); SELECT missing_column;');
+  await copyFile(path.join(root, 'db/migrations/021_activity_materials.sql'), path.join(fixture, '021_activity_materials.sql'));
+  await writeFile(path.join(fixture, '022_failure.sql'), 'CREATE TABLE must_rollback (id integer); SELECT missing_column;');
   await assert.rejects(migrate(database.connectionString, fixture));
   client = new pg.Client({ connectionString: database.connectionString });
   await client.connect();
   assert.equal((await client.query("SELECT to_regclass('must_rollback') AS name")).rows[0].name, null);
-  assert.equal((await client.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 20);
+  assert.equal((await client.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count, 21);
   pass('failed migration rolls back DDL and migration record');
   await writeFile(path.join(fixture, first), (await readFile(path.join(fixture, first), 'utf8')) + '\n-- changed\n');
   await assert.rejects(migrate(database.connectionString, fixture), /Applied migration changed/);
@@ -110,7 +111,12 @@ try {
     assert.equal((await service.transaction(c=>c.query('SELECT 1 AS value'))).rows[0].value,1);
     const original=new Error('original transaction failure');
     await assert.rejects(service.transaction(async c=>{await disconnect(c);throw original;}),error=>error===original);
-    assert.equal((await service.status()).schemaVersion,'020_roster_revisions.sql');
+    assert.equal((await service.status()).schemaVersion,'021_activity_materials.sql');
+    const latest=(await client.query("DELETE FROM schema_migrations WHERE version='021_activity_materials.sql' RETURNING *")).rows[0];
+    try{await assert.rejects(service.status(),/Database schema is not ready/);}
+    finally{await client.query('INSERT INTO schema_migrations(version,checksum,installed_at) VALUES($1,$2,$3)',[latest.version,latest.checksum,latest.installed_at]);}
+    assert.equal((await service.status()).schemaVersion,'021_activity_materials.sql');
+    pass('readiness rejects pre-materials schema and recovers after latest migration');
   }finally{await service.onApplicationShutdown();}
   pass('checked-out connection loss rejects safely, preserves original failure and discards broken connections');
 
@@ -119,7 +125,7 @@ try {
   let response = await fetch(apiUrl + '/api/v1/system/bootstrap');
   assert.equal(response.status, 200);
   const initial = await response.json();
-  assert.equal(initial.data.schemaVersion, '020_roster_revisions.sql');
+  assert.equal(initial.data.schemaVersion, '021_activity_materials.sql');
   assert.equal(initial.traceId, response.headers.get('x-request-id'));
   assert.equal(response.headers.get('cache-control'), 'no-store');
   response = await fetch(apiUrl + '/does-not-exist');

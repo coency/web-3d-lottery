@@ -1,3 +1,4 @@
+import {verifyMaterialsApi,verifyMaterialsBrowser} from './lib/verify-materials.mjs';
 import {provisionFixtureAccount} from './lib/account-fixture.mjs';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -15,8 +16,9 @@ import { migrate } from './lib/migrations.mjs';
 import { startNode, stopChild, waitForHttp } from './lib/processes.mjs';
 process.env.NODE_ENV='development';
 async function freePort(){return new Promise((resolve,reject)=>{const server=net.createServer();server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const port=server.address().port;server.close(()=>resolve(port));});});}
-await mkdir(path.join(root,'artifacts'),{recursive:true});
-const directory=await mkdtemp(path.join(root,'artifacts/oauth-'));
+const artifactRoot=process.env.VERIFICATION_DIRECTORY??path.join(root,'artifacts');
+await mkdir(artifactRoot,{recursive:true});
+const directory=await mkdtemp(path.join(artifactRoot,'oauth-'));
 const dbPort=await freePort(), apiPort=await freePort(), webPort=await freePort();
 const origin='http://127.0.0.1:'+webPort, base='http://127.0.0.1:'+apiPort;
 process.env.API_PORT=String(apiPort);process.env.WEB_PORT=String(webPort);
@@ -31,7 +33,7 @@ const passed=name=>{results.push(name);console.info('PASS '+name);};
 const password='Test-password-123';
 async function launch(mode='development'){
   const child=startNode(['apps/api/build/main.js'],{env:{...process.env,NODE_ENV:mode,DATABASE_URL:db.connectionString,AUTH_SECRET:secret,APP_ORIGIN:mode==='development'?origin:'https://example.test',ASSET_DIRECTORY:path.join(directory,'uploads')},stdio:'inherit'});
-  try{await waitForHttp(base+'/health/live',child);}catch(error){await stopChild(child);throw error;}
+  try{await waitForHttp(base+'/health/ready',child);}catch(error){await stopChild(child);throw error;}
   return child;
 }
 async function agent(){
@@ -104,6 +106,7 @@ try{
   assert.equal((await signup(alien)).status(),401);
   assert.equal((await sql.query('SELECT * FROM activity_wechat_verifications')).rowCount,0);
   passed('browser-bound one-use OAuth, cached avatar, server-owned identity, same-OpenID deduplication and cross-activity isolation');
+  const materials=await verifyMaterialsApi({a,b,anon,alien,activity,activityB,join,req,json,avatarBytes});
 
   await sql.query("INSERT INTO entitlements(user_id,paid_until) VALUES($1,clock_timestamp()+interval '1 day') ON CONFLICT(user_id) DO UPDATE SET paid_until=EXCLUDED.paid_until",[other.id]);
   const oldB=await begin(alien,joinB),oldBcb=await callback(alien,oldB),cfgB=await getConfig(b,urlB);
@@ -138,12 +141,13 @@ try{
   browserForm.fields[0].hint='请填写完整公司名称';
   await json(await req(a,'PUT','activities/'+activity.id+'/configuration/form',{value:browserForm},undefined,{'If-Match':cfg.version}));
   await page.getByRole('button',{name:'签到，开启幸运时刻'}).click();await page.getByText('签到设置已更新，请重新加载并核对填写内容',{exact:true}).waitFor();await page.getByLabel('公司').fill('星光工作室');
-  await page.screenshot({path:path.join(root,'artifacts/oauth-form.png'),fullPage:true});
+  await page.screenshot({path:path.join(artifactRoot,'oauth-form.png'),fullPage:true});
   await page.getByRole('button',{name:'签到，开启幸运时刻'}).click();await page.getByRole('heading',{name:'签到成功'}).waitFor();await page.reload();await page.getByRole('heading',{name:'签到成功'}).waitFor();
-  await page.screenshot({path:path.join(root,'artifacts/oauth-success.png'),fullPage:true});assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.join(artifactRoot,'oauth-success.png'),fullPage:true});assert.deepEqual(errors,[]);
   const roster=await json(await a.ctx.get('/api/v1/activities/'+activity.id+'/participants?mode=rehearsal'));assert.ok(JSON.stringify(roster).includes('扫码用户'));
   const draw=await json(await a.ctx.get('/api/v1/activities/'+activity.id+'/draw?mode=rehearsal'));assert.equal(draw.signedIn,3);
   passed('browser OAuth redirect round-trip, changed-form reload, required fields, saved signup and stage population');
+  await verifyMaterialsBrowser({browser,page,origin,a,activity,req,json,avatarBytes,materials});
 
   nextIdentity={openid:'inflight',nickname:'进行中回调',avatar:true};tokenDelay=1000;tokenStarted=false;
   const racing=await agent(),racingCb=await callback(racing,await begin(racing));const running=racing.ctx.get(racingCb,{maxRedirects:0});
@@ -151,7 +155,7 @@ try{
   const current=await json(await a.ctx.get('/api/v1/activities/'+activity.id+'/configuration'));
   await json(await req(a,'POST','activities/'+activity.id+'/mode/clear-rehearsal',{confirmation:'clear-rehearsal',generation:current.runs.find(r=>r.mode==='rehearsal').generation},undefined,{'If-Match':current.version}));
   assert.ok((await running).headers().location.includes('OAUTH_CONTEXT_CHANGED'));tokenDelay=0;
-  assert.equal((await me(anon)).authenticated,false);assert.equal((await signup(anon)).status(),401);
+  assert.equal((await me(anon)).authenticated,false);assert.equal((await signup(anon)).status(),401);assert.equal((await anon.ctx.get('/api/v1/'+join+'/materials')).status(),401);
   assert.equal((await sql.query('SELECT * FROM join_avatars WHERE entry_code=$1',[entry.code])).rowCount,0);
   nextIdentity={openid:'alpha',nickname:'重新签到用户',avatar:true};await complete(anon,await callback(anon,await begin(anon)));const rejoined=await json(await signup(anon,join,{answers:{[field]:'重来'}}));assert.notEqual(rejoined.id,first.id);
   passed('full rehearsal reset invalidates sessions, cached avatars and already-in-flight OAuth callbacks');
@@ -170,7 +174,7 @@ try{
   const {oauthProvider}= (await import('../apps/api/build/activities/wechat-provider.js')).default;
   const savedEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';assert.throws(()=>oauthProvider());process.env.NODE_ENV=savedEnv;
   passed('mock adapter rejects saved real-shaped credentials and cannot be enabled outside development');
-  await writeFile(path.join(root,'artifacts/oauth-verification.json'),JSON.stringify({verifiedAt:new Date().toISOString(),checks:results},null,2));
+  await writeFile(path.join(artifactRoot,'oauth-verification.json'),JSON.stringify({verifiedAt:new Date().toISOString(),checks:results},null,2));
 }finally{
  await browser?.close();await web?.close();for(const ctx of contexts)await ctx.dispose();await stopChild(api);await sql?.end();await db?.stop();await new Promise(resolve=>mock?mock.close(resolve):resolve());
 }

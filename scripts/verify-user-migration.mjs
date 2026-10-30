@@ -23,7 +23,7 @@ try{
  const credential=(await c.query("INSERT INTO wechat_credentials(id,app_id,account_name,sealed_secret) VALUES(gen_random_uuid(),'legacy-test','历史号','{}') RETURNING id")).rows[0].id;
  await c.query("UPDATE wechat_configurations SET credential_id=$1 WHERE scope='platform'",[credential]);
  await c.query("INSERT INTO wechat_configurations(scope,source,credential_id) VALUES($1,'platform',$2)",[activity.id,credential]);
- assert.deepEqual(await migrate(db.connectionString),['016_user_only.sql','017_local_accounts.sql','018_ten_person_rounds.sql','019_wechat_readiness.sql','020_roster_revisions.sql']);
+ assert.deepEqual(await migrate(db.connectionString),['016_user_only.sql','017_local_accounts.sql','018_ten_person_rounds.sql','019_wechat_readiness.sql','020_roster_revisions.sql','021_activity_materials.sql']);
  const current=(await c.query('SELECT * FROM users WHERE id=$1',[user.id])).rows[0];
  assert.equal(current.role,'user');assert.equal(current.phone,user.phone);assert.equal(current.password_hash,user.password_hash);
  assert.equal(current.login_name,'13800000999');
