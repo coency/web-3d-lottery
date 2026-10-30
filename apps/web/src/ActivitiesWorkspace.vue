@@ -64,10 +64,11 @@ const local=(value:string|number)=>new Date(new Date(value).getTime()+8*3600000)
 const minTime=computed(()=>local(clock.value).slice(0,10));
 const maxTime=computed(()=>local((selected.value?Date.parse(selected.value.created_at):clock.value)+29*86400000).slice(0,10));
 function fail(e:unknown){if(e instanceof RequestError&&e.status===401){emit('expired');return;}error.value=e instanceof Error?e.message:'操作失败，请稍后重试';}
+let workspaceLoadFailed=false;
 async function load(){
  loading.value=true;error.value='';
- try{const [list,entitlement]=await Promise.all([get<Activity[]>('/api/v1/activities'),get<Entitlement>('/api/v1/entitlements/me')]);rows.value=list;rights.value=entitlement;anchor=Date.parse(entitlement.server_now);tick=performance.now();clock.value=anchor;void prunePortraitCaches(props.user.id,list).catch(()=>{});}
- catch(e){fail(e);}finally{loading.value=false;}
+ try{const [list,entitlement]=await Promise.all([get<Activity[]>('/api/v1/activities'),get<Entitlement>('/api/v1/entitlements/me')]);rows.value=list;rights.value=entitlement;workspaceLoadFailed=false;anchor=Date.parse(entitlement.server_now);tick=performance.now();clock.value=anchor;void prunePortraitCaches(props.user.id,list).catch(()=>{});}
+ catch(e){workspaceLoadFailed=true;fail(e);}finally{loading.value=false;}
 }
 function create(){editorEpoch++;formActivityId=null;basicTab.value='details';tab.value='basic';resetUploads();selected.value=null;Object.assign(form,empty());Object.keys(previews).forEach(k=>previews[k as keyof typeof previews]='');editing.value=true;error.value='';message.value='';}
 async function open(a:Activity,section:'basic'|'checkin'='basic'){
@@ -131,6 +132,8 @@ const unsubscribe=subscribeUpdates(()=>{syncPending=true;},status=>{
 const syncTimer=setInterval(async()=>{
  if(!syncPending||loading.value||saving.value||uploads.value)return;
  syncPending=false;
+ // A failed initial load also needs entitlements and notice state restored.
+ if(workspaceLoadFailed){await load();return;}
  try{rows.value=await get<Activity[]>('/api/v1/activities');
  // Preserve unsaved inputs and their original version. Only expiry/mode may update immediately.
  if(selected.value){const current=rows.value.find(a=>a.id===selected.value!.id);if(current){selected.value={...selected.value,phase:current.phase,mode:current.mode,expires_at:current.expires_at};}}

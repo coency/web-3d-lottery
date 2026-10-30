@@ -1,23 +1,20 @@
 import {prepareWechatEnvironment} from './lib/wechat-environment.mjs';
 import { prepareAuthEnvironment } from './lib/auth-environment.mjs';
-import { createRequire } from 'node:module';
 import { installShutdown } from './lib/shutdown.mjs';
 import path from 'node:path';
 import { createServer } from 'vite';
 import { loadEnvironment, requireDevelopment, root, port } from './lib/config.mjs';
 import { startLocalDatabase, assertPortFree } from './lib/database.mjs';
 import { migrate } from './lib/migrations.mjs';
-import { runNode, startNode, stopChild, waitForHttp } from './lib/processes.mjs';
-const require = createRequire(import.meta.url);
+import { watchApi } from './lib/dev-api.mjs';
 loadEnvironment();
-let database, web;
-const children = [];
+let database, web, apiWatcher;
 let stopping = false;
 async function stop(code = 0) {
   if (stopping) return;
   stopping = true;
   await web?.close();
-  for (const child of children) await stopChild(child);
+  await apiWatcher?.stop();
   await database?.stop();
   process.exitCode = code;
 }
@@ -36,15 +33,15 @@ try {
   await prepareWechatEnvironment();
   const applied = await migrate(process.env.DATABASE_URL);
   console.info(`[migrate] ${applied.length ? applied.join(', ') : 'up to date'}`);
-  await runNode([require.resolve('typescript/bin/tsc'), '-p', 'apps/api/tsconfig.json']);
-  const api = startNode(['--watch', 'apps/api/build/main.js']);
-  children.push(api);
-  await waitForHttp(`http://127.0.0.1:${apiPort}/health/ready`, api);
-  const compiler = startNode([require.resolve('typescript/bin/tsc'), '-p', 'apps/api/tsconfig.json', '--watch', '--preserveWatchOutput']);
-  children.push(compiler);
+  apiWatcher = watchApi({
+    project: path.join(root, 'apps/api/tsconfig.json'),
+    entry: path.join(root, 'apps/api/build/main.js'),
+    readyUrl: `http://127.0.0.1:${apiPort}/health/ready`,
+    onFatal: error => { console.error(`[dev] ${error.message}`); void stop(1); },
+  });
+  await apiWatcher.ready;
   web = await createServer({ root: path.join(root, 'apps/web'), configFile: path.join(root, 'apps/web/vite.config.ts') });
   await web.listen();
-  for (const child of children) child.once('exit', () => { if (!stopping) void stop(1); });
   installShutdown(stop);
   console.info(`\n星遇开发工作台：http://127.0.0.1:${webPort}\nCtrl+C stops services; database data is retained.\n`);
 } catch (error) {

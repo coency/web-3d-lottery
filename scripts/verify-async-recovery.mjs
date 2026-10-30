@@ -7,6 +7,7 @@ const origin='http://127.0.0.1:'+web.httpServer.address().port;
 import {chromium} from 'playwright';
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH??'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 try{
+ await verifyWorkspaceRecovery(browser,origin);
  const page=await browser.newPage();
  await page.addInitScript(()=>{window.EventSource=class{addEventListener(){}close(){}};});
  const now=new Date().toISOString();
@@ -138,3 +139,43 @@ async function verifyStage(browser,origin){
  console.log(JSON.stringify(results));
 }
 
+
+async function verifyWorkspaceRecovery(browser, origin) {
+ const page=await browser.newPage();
+ let unavailable=true,activityReads=0,entitlementReads=0;
+ const now=new Date().toISOString();
+ try{
+  await page.addInitScript(()=>{
+   window.EventSource=class{
+    constructor(){this.listeners={};window.recoveryStream=this;}
+    addEventListener(name,callback){this.listeners[name]=callback;}
+    close(){}
+   };
+  });
+  await page.route('**/api/**',async route=>{
+   const pathname=new URL(route.request().url()).pathname;
+   let data={};
+   if(pathname.endsWith('/auth/me'))data={id:'recovery-fixture',account:'recovery-fixture',role:'user'};
+   else if(pathname.endsWith('/auth/csrf'))data={csrfToken:'fixture'};
+   else if(pathname==='/api/v1/activities'){
+    activityReads++;if(unavailable)return route.fulfill({status:503,body:'temporarily unavailable'});
+    data=[];
+   }else if(pathname==='/api/v1/entitlements/me'){
+    entitlementReads++;if(unavailable)return route.fulfill({status:503,body:'temporarily unavailable'});
+    data={created_activity_count:0,can_create:true,server_now:now};
+   }
+   await route.fulfill({json:{data}});
+  });
+  await page.goto(origin+'/');
+  await page.getByRole('button',{name:'重新加载',exact:true}).waitFor();
+  assert.equal(entitlementReads,1);
+  unavailable=false;
+  await page.evaluate(()=>window.recoveryStream.listeners.sync({data:JSON.stringify({activities:[]})}));
+  await page.getByRole('button',{name:'创建活动',exact:true}).waitFor({timeout:5000});
+  assert.equal(await page.getByRole('button',{name:'创建活动',exact:true}).isEnabled(),true);
+  await page.waitForFunction(()=>!document.body.textContent.includes('服务暂时不可用'));
+  assert.ok(activityReads>=2);
+  assert.ok(entitlementReads>=2,'reconnection must reload permissions as well as activities');
+  console.info('PASS initial workspace load recovers without manual refresh after backend reconnects');
+ }finally{await page.close();}
+}
