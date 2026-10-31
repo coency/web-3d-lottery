@@ -278,7 +278,8 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('resize',position);
 let joinRequest=0;
-$('#qrDialog').addEventListener('close',()=>{joinRequest++;});
+// A queued close event from the previous opening must not cancel the new request.
+$('#qrDialog').addEventListener('close',()=>{if(!$('#qrDialog').open)joinRequest++;});
 async function showJoin(){
  const request=++joinRequest;
  const dialog=$('#qrDialog');dialog.querySelectorAll('img,a').forEach(el=>el.remove());

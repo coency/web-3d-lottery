@@ -136,18 +136,25 @@ try{
  const stage=await ownerContext.newPage();await stage.goto(origin+'/stage.html?activity='+activity.id+'&mode=rehearsal');
  await stage.waitForFunction(()=>document.querySelector('#joined')?.textContent==='4');
  await stage.waitForFunction(()=>document.querySelector('#draw')?.disabled===false);
- let releaseFirst,firstRequested;
+ let releaseFirst,firstRequested,releaseSecond;
  const firstPending=new Promise(resolve=>firstRequested=resolve);
  const firstRelease=new Promise(resolve=>releaseFirst=resolve);
+ const secondRelease=new Promise(resolve=>releaseSecond=resolve);
  let entries=0;
  await stage.route('**/join-entry?mode=rehearsal',async route=>{
   const response=await qrResponse(route);
   if(++entries===1){firstRequested();await firstRelease;}
+  else if(entries===2)await secondRelease;
   await route.fulfill(response);
  });
- await stage.keyboard.press('q');await firstPending;await stage.keyboard.press('Escape');
- await stage.waitForFunction(()=>!document.querySelector('#qrDialog').open);
- await stage.keyboard.press('q');await stage.locator('#qrDialog img').waitFor();
+ await stage.keyboard.press('q');await firstPending;
+ // Reopen before the queued close event is delivered, then release the new response.
+ await stage.evaluate(()=>new Promise(resolve=>{
+  const dialog=document.querySelector('#qrDialog');
+  dialog.addEventListener('close',()=>resolve(),{once:true});
+  dialog.close();document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'q',bubbles:true}));
+ }));
+ releaseSecond();await stage.locator('#qrDialog img').waitFor();
  releaseFirst();await stage.waitForTimeout(300);
  assert.equal(await stage.locator('#qrDialog img').count(),1);
  assert.equal(await stage.locator('#qrDialog a').count(),0);
