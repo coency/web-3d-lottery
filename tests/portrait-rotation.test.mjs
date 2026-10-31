@@ -202,3 +202,16 @@ test('new arrivals have priority; reorder and removals preserve valid assignment
  assert.deepEqual(rotation.update([]),Array(300).fill(null));
  assert.equal(new Set(rotation.update(ids(400))).size,300);
 });
+
+test('late brand loads refresh only unresolved fallback cells and preserve real GPU portraits',()=>{
+ const tiles=createPortraitTiles(3),ready=new Set(['ready']);let brand={name:'system'};
+ const keys=['pending','ready','brand'];const canDraw=key=>key==='brand'||ready.has(key);
+ const initial=tiles.update(keys,new Set(),canDraw,Infinity,brand);assert.equal(initial.updates.length,3);
+ assert.equal(tiles.update(keys,new Set(),canDraw,Infinity,brand).updates.length,0);
+ brand={name:'custom'};ready.clear();
+ assert.deepEqual(tiles.update(keys,new Set(['brand']),canDraw,Infinity,brand).updates.map(u=>u.key),['pending','brand']);
+ assert.equal(tiles.prepared('pending'),false);assert.equal(tiles.prepared('ready'),true);
+ ready.add('pending');assert.deepEqual(tiles.update(keys,new Set(['pending']),canDraw,Infinity,brand).updates.map(u=>u.key),['pending']);
+ ready.clear();brand={name:'new custom'};
+ assert.deepEqual(tiles.update(keys,null,canDraw,Infinity,brand).updates.map(u=>u.key),['brand']);
+});

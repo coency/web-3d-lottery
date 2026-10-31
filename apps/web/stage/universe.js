@@ -45,7 +45,7 @@ export function createUniverse({getState,getPeople,avatar,brandLogo,reduced,noti
  // canvas on the GPU would bounce each read-friendly portrait across contexts.
  const atlas=document.createElement('canvas');atlas.width=atlas.height=2688;const ctx=atlas.getContext('2d',{willReadFrequently:true});
  const portraitTiles=createPortraitTiles(441),tileTints=[];
- const portraitKey=person=>person===null?'brand':typeof person==='number'?'number:'+person:person?.avatarUrl?'url:'+person.avatarUrl:'fallback:'+(person?.nickname||'✦');
+ const portraitKey=person=>person===null||avatar.usesBrand?.(person)?'brand':typeof person==='number'?'number:'+person:person?.avatarUrl?'url:'+person.avatarUrl:'fallback:'+(person?.nickname||'✦');
  const texture=new THREE.CanvasTexture(atlas);texture.colorSpace=THREE.SRGBColorSpace;
  const portraitUpload=new THREE.Texture(),portraitUploadPosition=new THREE.Vector2();
  const material=new THREE.ShaderMaterial({uniforms:{atlas:{value:texture},grid:{value:21},brightness:{value:1},opacity:{value:1},frontOnly:{value:0},sideFlowTime:{value:0},sideFlowStrength:{value:0}},vertexShader:`
@@ -92,7 +92,7 @@ export function createUniverse({getState,getPeople,avatar,brandLogo,reduced,noti
  // Each winner has one reusable 512px texture, uploaded separately during retreat.
  const resultScene=new THREE.Scene(),resultCamera=new THREE.OrthographicCamera(-1,1,1,-1,.1,20000);resultCamera.position.z=10000;
  const winnerSlots=Array.from({length:10},()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;const geo=geometry(CUBE_SIDE,1),mat=material.clone();mat.uniforms.atlas.value=texture;mat.uniforms.grid.value=1;mat.transparent=true;mat.depthWrite=false;const mesh=new THREE.InstancedMesh(geo,mat,1);mesh.frustumCulled=false;mesh.visible=false;resultScene.add(mesh);return {canvas,texture,geo,mesh,person:null};});
- function prepareWinner(index,record,force=false){const slot=winnerSlots[index];if(!force&&slot.person===record.person)return;avatar(record.person,512,slot.canvas);slot.person=record.person;const tint=portraitTint(slot.canvas);slot.geo.attributes.bodyTint.setXYZ(0,tint.r,tint.g,tint.b);slot.geo.attributes.bodyTint.needsUpdate=true;slot.texture.needsUpdate=true;resultRenderer.initTexture(slot.texture);}
+ function prepareWinner(index,record,force=false){const slot=winnerSlots[index];if(!force&&slot.person===record.person)return;avatar(record.person,512,slot.canvas);slot.portraitReady=avatar.isReady?.(record.person)??true;slot.person=record.person;const tint=portraitTint(slot.canvas);slot.geo.attributes.bodyTint.setXYZ(0,tint.r,tint.g,tint.b);slot.geo.attributes.bodyTint.needsUpdate=true;slot.texture.needsUpdate=true;resultRenderer.initTexture(slot.texture);}
  const trails=Array.from({length:10},()=>createMeteorTrail(resultScene,renderer.getPixelRatio()));
  renderer.autoClear=false;
  const dummy=new THREE.Object3D(),flyDummy=new THREE.Object3D();let layout=sphereLayout(getState().population),points=spherePoints(layout.count),radius=layout.radius,rotation=0,speed=.038,energy=0;
@@ -140,10 +140,10 @@ export function createUniverse({getState,getPeople,avatar,brandLogo,reduced,noti
   const persons=visiblePeople.map((person,index)=>matrixPins.get(index)?.person??person),keys=persons.map(portraitKey);
   const byKey=new Map(keys.map((key,index)=>[key,persons[index]]));
   const dirty=dirtyUrls===null?null:new Set([...dirtyUrls].map(url=>'url:'+url));
-  if(dirtyUrls?.has(brandLogo.url?.()))dirty.add('brand');
+  if(dirty&&((brandLogo.changed?.(dirtyUrls))||dirtyUrls?.has(brandLogo.url?.())))dirty.add('brand');
   const {indices,updates}=portraitTiles.update(keys,dirty,key=>{
    const person=byKey.get(key);return person===null||!avatar.isReady||avatar.isReady(person);
-  });
+  },Infinity,brandLogo.version?.());
   uploadPortraitTiles(updates,byKey);
   for(let i=0;i<indices.length;i++){
    const tile=indices[i],tint=tileTints[tile];geo.attributes.avatarIndex.array[i]=tile;
@@ -180,7 +180,7 @@ export function createUniverse({getState,getPeople,avatar,brandLogo,reduced,noti
   const byKey=new Map([...visible,...upcoming].map(person=>[portraitKey(person),person]));
   const {updates}=portraitTiles.update([...byKey.keys()],new Set(),key=>{
    const person=byKey.get(key);return person===null||!avatar.isReady||avatar.isReady(person);
-  },6);
+  },6,brandLogo.version?.());
   uploadPortraitTiles(updates,byKey);
  }
  function applyPortraitSlots(ids){
@@ -414,7 +414,7 @@ export function createUniverse({getState,getPeople,avatar,brandLogo,reduced,noti
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();active=false;notify('图形显示已中断，请刷新恢复活动进度');});canvas.addEventListener('webglcontextrestored',()=>location.reload());
  // Compile even currently hidden effects before enabling the first draw.
  const ready=Promise.all([renderer.compileAsync(scene,camera),renderer.compileAsync(cosmicScene,cosmicCamera),resultRenderer.compileAsync(resultScene,resultCamera)]);
- return {ready,refreshPortraits(urls=null){corridorRobot.refreshPortraits(urls);paintVisiblePortraits(urls);resultRecords.forEach((record,index)=>{if(record.status!=='void'&&(urls===null||urls.has(record.person?.avatarUrl)))prepareWinner(index,record,true);});},setPopulation(n){population=n;refreshPeople();},syncWinners,
+ return {ready,refreshPortraits(urls=null){corridorRobot.refreshPortraits(urls);paintVisiblePortraits(urls);resultRecords.forEach((record,index)=>{if(record.status!=='void'&&(urls===null||urls.has(record.person?.avatarUrl)||(brandLogo.changed?.(urls)&&(!winnerSlots[index].portraitReady||avatar.usesBrand?.(record.person)))))prepareWinner(index,record,true);});},setPopulation(n){population=n;refreshPeople();},syncWinners,
   reveal,
 
  };

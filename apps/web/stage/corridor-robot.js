@@ -33,10 +33,10 @@ export function createCorridorRobot(parent,{geometry,material,avatar,brandLogo,g
  const logoMaterial=new THREE.MeshBasicMaterial({map:logoTexture,transparent:true});
  const chest=new THREE.Mesh(new THREE.BoxGeometry(1.8,1.8,1.8),[sideMaterial,sideMaterial,sideMaterial,sideMaterial,logoMaterial,sideMaterial]);
  chest.name='robot-avatar-chest';chest.matrixAutoUpdate=false;group.add(chest);
- let chestQueue=[],chestCursor=0,chestElapsed=0,chestPerson=null,chestChanges=0;
+ let chestQueue=[],chestCursor=0,chestElapsed=0,chestPerson=null,chestChanges=0,chestPortraitReady=false;const portraitReady=[];
  function refreshLogo(){
   const ctx=logoCanvas.getContext('2d',{willReadFrequently:true}),source=chestPerson==null?brandLogo(256,true):avatar(chestPerson,256);
-  ctx.clearRect(0,0,256,256);ctx.drawImage(source,0,0,256,256);logoTexture.needsUpdate=true;
+  ctx.clearRect(0,0,256,256);ctx.drawImage(source,0,0,256,256);logoTexture.needsUpdate=true;chestPortraitReady=avatar.isReady?.(chestPerson)??true;
  }
  function nextChestPortrait(){
   if(chestCursor>=chestQueue.length){
@@ -109,6 +109,7 @@ export function createCorridorRobot(parent,{geometry,material,avatar,brandLogo,g
    source.matrix.decompose(origins[i].position,origins[i].rotation,origins[i].scale);
    mesh.setMatrixAt(i,source.matrix);
    context.drawImage(source.person==null?brandLogo():avatar(source.person,128),i%5*128,Math.floor(i/5)*128,128,128);
+   portraitReady[i]=avatar.isReady?.(source.person)??true;
    const side=i%2?-1:1;
    scatter[i].velocity.set(side*(4+random()*5),(random()-.3)*5,2+random()*6);
    scatter[i].spin.set((random()-.5)*5,(random()-.5)*5,(random()-.5)*5);
@@ -146,9 +147,10 @@ export function createCorridorRobot(parent,{geometry,material,avatar,brandLogo,g
   resize(next){view=next;},refreshLogo,stop,explode,
   refreshPortraits(urls=null){
    if(!group.visible)return;
-   if(urls===null||urls.has(chestPerson?.avatarUrl)||chestPerson===null&&urls.has(brandLogo.url?.()))refreshLogo();
+   const brandChanged=urls===null||brandLogo.changed?.(urls)||urls.has(brandLogo.url?.());
+   if(urls===null||urls.has(chestPerson?.avatarUrl)||brandChanged&&(chestPerson==null||!chestPortraitReady||avatar.usesBrand?.(chestPerson)))refreshLogo();
    let changed=false;
-   people.forEach((person,i)=>{if(urls!==null&&!urls.has(person?.avatarUrl)&&!(person==null&&urls.has(brandLogo.url?.())))return;context.drawImage(person==null?brandLogo():avatar(person,128),i%5*128,Math.floor(i/5)*128,128,128);changed=true;});
+   people.forEach((person,i)=>{if(urls!==null&&!urls.has(person?.avatarUrl)&&!(brandChanged&&(person==null||!portraitReady[i]||avatar.usesBrand?.(person))))return;context.drawImage(person==null?brandLogo():avatar(person,128),i%5*128,Math.floor(i/5)*128,128,128);portraitReady[i]=avatar.isReady?.(person)??true;changed=true;});
    if(changed)texture.needsUpdate=true;
   },
   setEnabled(value){if(enabled!==value)clear();enabled=value;},

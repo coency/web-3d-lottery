@@ -79,3 +79,24 @@ test('a corrupt persisted file is removed and replaced on retry',async()=>{
  f.cache.preload('/bad');await settle(()=>attempts===1&&!store.files.has('/bad'));
  f.cache.retryFailed();await settle(()=>f.cache.stats().decoded===1);assert.deepEqual(f.requests,['/bad']);f.cache.dispose();
 });
+
+// Brand placeholders are shared across all themes, including winner canvases.
+import {createStagePortraits} from '../apps/web/stage/portrait-source.js';
+test('pending, failed and missing avatars use the brand; decoded photos replace it',()=>{
+ const images=new Map(),photos=new Map(),requests=[],painted=[];
+ const createCanvas=()=>({getContext(){return {fillRect(){},drawImage(source,...args){painted.push({source,args});},save(){},scale(){},beginPath(){},moveTo(){},bezierCurveTo(){},closePath(){},fill(){painted.push({source:'system-vector'});},restore(){}};}});
+ const raster={draw(image,label,size,target){painted.push({source:image});return target||{photo:image};}};
+ let url='/brand';
+ const portraits={get:key=>photos.get(key),isReady:key=>photos.has(key),preload:key=>requests.push(key)};
+ const {avatar,logo}=createStagePortraits({images:{load:key=>requests.push(key),get:key=>images.get(key)},getPortraits:()=>portraits,getLogoUrl:()=>url,raster,createCanvas});
+ const person={avatarUrl:'/photo',nickname:'真实用户'};
+ const first=avatar(person);assert.equal(painted.at(-1).source,'system-vector');assert.equal(avatar(person),first);assert.equal(avatar.isReady(person),false);
+ const brand={width:256,height:128};images.set('/brand',brand);const readyBrand=avatar(person);assert.notEqual(readyBrand,first);assert.equal(painted.at(-1).source,brand);
+ const [x,y,width,height]=painted.at(-1).args;assert.equal(width/height,2);assert.ok(x>=0&&y>=0&&x+width<=128&&y+height<=128,'Brand logo remains fully visible without cropping');
+ assert.equal(avatar(person),readyBrand,'Failed or still-pending photos keep the logo');
+ assert.equal(avatar({nickname:'没有头像'}),readyBrand);assert.equal(avatar({avatarUrl:'/avatar-placeholder.svg'}),readyBrand);
+ const photo={width:128,height:128};photos.set('/photo',photo);assert.equal(avatar.isReady(person),true);assert.equal(avatar(person).photo,photo);
+ const target=createCanvas();assert.equal(avatar(person,512,target),target);photos.delete('/photo');assert.equal(avatar(person,512,target),target);assert.equal(painted.at(-1).source,brand);
+ assert.equal(logo.changed(new Set(['/brand'])),true);assert.equal(logo.changed(new Set(['/other'])),false);assert.equal(logo.version(),brand);
+ url=null;const system={width:64,height:64};images.set('/favicon.svg',system);avatar(person);assert.equal(painted.at(-1).source,system);
+});

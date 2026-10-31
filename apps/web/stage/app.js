@@ -7,6 +7,7 @@ import {createImageCache} from './image-cache.js';
 import {createPortraitCache} from './portrait-cache.js';
 import {prepareWaterfallWorker,cancelWaterfallPreparation} from './waterfall-loader.js';
 import {createPortraitRasterizer} from './portrait-raster.js';
+import {createStagePortraits} from './portrait-source.js';
 import {stageChecks,stageCheckSummary} from './preflight.js';
 import {winnerLayout} from './sphere-layout.js';
 import {get,write,releaseOnExit,RequestError} from '../src/api';
@@ -57,13 +58,12 @@ function renderChecks(){
  $('#preflightReason').hidden=!reason;
 }
 const images=createImageCache({onLoad:url=>{dirtyPortraitUrls.add(url);}}),existing=new Set(),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-images.load('/avatar-placeholder.svg');
 const portraitRaster=createPortraitRasterizer();
 let portraits=null,portraitScope='',portraitExpiry='',accountId='';
 function portraitProgress(status){
  portraitStatus=status;renderChecks();
  const defaults=people.filter(person=>!person.avatarUrl||person.avatarUrl==='/avatar-placeholder.svg').length;
- $('#portraitProgress').textContent='头像资源 '+status.total+' 张 · 本机已缓存 '+status.cached+' 张 · 待准备 '+status.pending+' 张 · 失败 '+status.failed+' 张'+(defaults?' · 使用默认头像 '+defaults+' 人':'');
+ $('#portraitProgress').textContent='头像资源 '+status.total+' 张 · 本机已缓存 '+status.cached+' 张 · 待准备 '+status.pending+' 张 · 失败 '+status.failed+' 张'+(defaults?' · 使用品牌 Logo '+defaults+' 人':'');
  $('#portraitStorage').textContent=status.storageAvailable?'头像自动缓存，关闭后重开可复用。活动结束 7 天后，下次打开系统时清理；清理网站数据后需重新下载。':'本机存储暂不可用，已改用临时缓存；关闭后可能需要重新下载。';
 }
 function setupPortraits(){
@@ -93,34 +93,15 @@ function fail(e){
 function loadImage(url){
  portraits?.load(url,{priority:3,display:true});
 }
-function portrait(person,size=128,target){
- const img=person?.avatarUrl===activity?.logoUrl?images.get(person?.avatarUrl):portraits?.get(person?.avatarUrl);
- // A pending photo is not a text avatar. Use the standard silhouette on first
- // load; rotation retains prepared portraits while subsequent photos decode.
- return portraitRaster.draw(img||(person?.avatarUrl?images.get('/avatar-placeholder.svg'):null),person?.avatarUrl?'✦':person?.nickname?.slice(0,1)||'✦',size,target);
-}
-function avatar(person,size,target){return portrait(typeof person==='number'?people[person]:person,size,target);}
-avatar.preload=persons=>persons.forEach(person=>{if(person?.avatarUrl)portraits?.preload(person.avatarUrl);});
-avatar.isReady=person=>{
- const url=person?.avatarUrl;if(!url)return true;
- if(url===activity?.logoUrl)return !!images.get(url);
- if(portraits?.isReady(url))return true;
- portraits?.preload(url);return false;
-};
+const stagePortraits=createStagePortraits({images,getPortraits:()=>portraits,getLogoUrl:()=>activity?.logoUrl,raster:portraitRaster});
+const {logo}=stagePortraits;
+function avatar(person,size,target){return stagePortraits.avatar(typeof person==='number'?people[person]:person,size,target);}
+avatar.preload=stagePortraits.avatar.preload;avatar.isReady=stagePortraits.avatar.isReady;avatar.usesBrand=stagePortraits.avatar.usesBrand;
 function refreshLoadedPortraits(){
  if(!visuals||(!imagesDirty&&!dirtyPortraitUrls.size))return;
  const changed=imagesDirty?null:new Set(dirtyPortraitUrls);
  imagesDirty=false;dirtyPortraitUrls.clear();visuals.refreshPortraits(changed);
 }
-function logo(size=128,contain=false){
- if(!contain)return portrait({avatarUrl:activity?.logoUrl},size);
- const c=document.createElement('canvas');c.width=c.height=size;
- const ctx=c.getContext('2d'),img=images.get(activity?.logoUrl);
- if(img){const scale=size*.9/Math.max(img.width,img.height),w=img.width*scale,h=img.height*scale;ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);}
- else{ctx.fillStyle='#efd5a5';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=(size*.68)+'px sans-serif';ctx.fillText('✦',size/2,size/2);}
- return c;
-}
-logo.url=()=>activity?.logoUrl;
 function leaves(awards){
  const children=new Map(awards.filter(a=>a.replaces_award_id).map(a=>[a.replaces_award_id,a]));
  return awards.filter(a=>!a.replaces_award_id).map(a=>{while(children.has(a.id))a=children.get(a.id);return {...a,person:a.display_snapshot,replaces:a.replaces_award_id};});
