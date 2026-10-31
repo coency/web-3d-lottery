@@ -31,10 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node --input-type=module -e "import {validateVersion} from './scripts/package-deploy.mjs'; validateVersion(process.env.RELEASE_VERSION)"
-          if gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then echo 'Release already exists'; exit 1; fi
-          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$RELEASE_VERSION" --jq '.object.sha' 2>/dev/null || true)
-          if [ -n "$tag_sha" ] && [ "$tag_sha" != "$GITHUB_SHA" ]; then echo 'Existing tag points to a different commit'; exit 1; fi
+          node scripts/check-release-version.mjs
           docker info
           docker compose version
           "$CHROME_PATH" --version

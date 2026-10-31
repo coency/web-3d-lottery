@@ -31,3 +31,15 @@ test('paired packaging cannot be combined with check-only or image-only options'
   assert.equal(result.error,undefined);assert.equal(result.status,1);assert.match(result.stderr,/用法/);
  }
 });
+
+import {checkReleaseVersion} from '../scripts/check-release-version.mjs';
+test('new releases accept missing tags, reject conflicts and fail closed on API errors',async()=>{
+ const sha='a'.repeat(40),options={repository:'owner/repo',version:'1.0.0-rc.3',sha,token:'fixture'};
+ const response=(status,body)=>({status,ok:status>=200&&status<300,json:async()=>body});
+ const missing=()=>response(404,{message:'Not Found'});
+ assert.deepEqual(await checkReleaseVersion({...options,fetcher:async()=>missing()}),{tag:'v1.0.0-rc.3',sha});
+ assert.deepEqual(await checkReleaseVersion({...options,fetcher:async url=>url.includes('/git/ref/')?response(200,{object:{sha}}):missing()}),{tag:'v1.0.0-rc.3',sha});
+ await assert.rejects(checkReleaseVersion({...options,fetcher:async url=>url.includes('/git/ref/')?response(200,{object:{sha:'b'.repeat(40)}}):missing()}),/其他提交/);
+ await assert.rejects(checkReleaseVersion({...options,fetcher:async()=>response(200,{tag_name:'v1.0.0-rc.3'})}),/已发布/);
+ for(const status of [401,403,429,500])await assert.rejects(checkReleaseVersion({...options,fetcher:async()=>response(status,{message:'error'})}),new RegExp('HTTP '+status));
+});
