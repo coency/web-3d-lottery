@@ -56,6 +56,16 @@ function run(command,args){
   const result=spawnSync(command,args,{cwd:root,stdio:'inherit'});
   if(result.error||result.status!==0)throw new Error(`${command} 执行失败`);
 }
+export function imageBuildPlan({imageTag,dockerfile,context,registry='public.ecr.aws/docker/library'}){
+  if(!['public.ecr.aws/docker/library','docker.io/library'].includes(registry))throw new Error('不支持的发布镜像来源');
+  const postgres='public.ecr.aws/docker/library/postgres:18.6-bookworm';
+  const pull=registry+'/postgres:18.6-bookworm';
+  const commands=['app','gateway'].map(target=>['build','--platform','linux/amd64','--build-arg','NODE_IMAGE='+registry+'/node:24.14.1-bookworm-slim','--build-arg','CADDY_IMAGE='+registry+'/caddy:2.11.7-alpine','--target',target,'-t','starlit-'+target+':'+imageTag,'-f',dockerfile,context]);
+  commands.push(['pull','--platform','linux/amd64',pull]);
+  // Preserve the reference expected by Compose and existing maintenance scripts.
+  if(pull!==postgres)commands.push(['tag',pull,postgres]);
+  return commands;
+}
 export async function prepareBundle(outputParent,{version,includeImages=false}={}){
   validateVersion(version);
   const kind=includeImages?'images':'source';
@@ -88,8 +98,7 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
   await writeFile(path.join(directory,'release.env'),`RELEASE_VERSION=${version}\nBUNDLE_KIND=${kind}\nAPP_IMAGE=starlit-app:${imageTag}\nGATEWAY_IMAGE=starlit-gateway:${imageTag}\n`);
   if(includeImages){
     run('docker',['info']);
-    for(const target of ['app','gateway'])run('docker',['build','--platform','linux/amd64','--target',target,'-t',`starlit-${target}:${imageTag}`,'-f',path.join(directory,'source/deploy/container/Dockerfile'),path.join(directory,'source')]);
-    run('docker',['pull','--platform','linux/amd64','public.ecr.aws/docker/library/postgres:18.6-bookworm']);
+    for(const args of imageBuildPlan({imageTag,dockerfile:path.join(directory,'source/deploy/container/Dockerfile'),context:path.join(directory,'source'),registry:process.env.RELEASE_IMAGE_REGISTRY}))run('docker',args);
     for(const image of [`starlit-app:${imageTag}`,`starlit-gateway:${imageTag}`,'public.ecr.aws/docker/library/postgres:18.6-bookworm']){
       const check=spawnSync('docker',['image','inspect','--format','{{.Os}}/{{.Architecture}}',image],{encoding:'utf8'});
       if(check.status!==0||check.stdout.trim()!=='linux/amd64')throw new Error('镜像架构错误');

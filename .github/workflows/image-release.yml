@@ -21,6 +21,7 @@ jobs:
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       CHROME_PATH: /usr/bin/google-chrome
+      RELEASE_IMAGE_REGISTRY: docker.io/library
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

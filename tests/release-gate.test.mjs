@@ -43,3 +43,19 @@ test('new releases accept missing tags, reject conflicts and fail closed on API 
  await assert.rejects(checkReleaseVersion({...options,fetcher:async()=>response(200,{tag_name:'v1.0.0-rc.3'})}),/已发布/);
  for(const status of [401,403,429,500])await assert.rejects(checkReleaseVersion({...options,fetcher:async()=>response(status,{message:'error'})}),new RegExp('HTTP '+status));
 });
+
+
+test('release image mirror keeps pinned versions, amd64 and the installed database reference',async()=>{
+ const {imageBuildPlan}=await import('../scripts/package-deploy.mjs');
+ const options={imageTag:'1.0.0-rc.3-test',dockerfile:'Dockerfile',context:'source'};
+ const defaults=imageBuildPlan(options),mirror=imageBuildPlan({...options,registry:'docker.io/library'});
+ assert.equal(defaults.length,3);assert.equal(mirror.length,4);
+ for(const commands of [defaults,mirror])for(const command of commands.slice(0,3))assert.deepEqual(command.slice(command.indexOf('--platform'),command.indexOf('--platform')+2),['--platform','linux/amd64']);
+ for(const build of mirror.slice(0,2)){
+  assert(build.includes('NODE_IMAGE=docker.io/library/node:24.14.1-bookworm-slim'));
+  assert(build.includes('CADDY_IMAGE=docker.io/library/caddy:2.11.7-alpine'));
+ }
+ assert.deepEqual(mirror[2],['pull','--platform','linux/amd64','docker.io/library/postgres:18.6-bookworm']);
+ assert.deepEqual(mirror[3],['tag','docker.io/library/postgres:18.6-bookworm',defaults[2].at(-1)]);
+ assert.throws(()=>imageBuildPlan({...options,registry:'untrusted.example'}));
+});
