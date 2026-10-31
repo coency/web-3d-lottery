@@ -27,6 +27,7 @@ export async function renameDelivery(action){
  assert(!release.immutable&&!release.draft,'Release is immutable or draft');
  if(action==='prepare'){
   assert.deepEqual(release.assets.map(a=>a.name).sort(),deliveryNames(version).sort(),'Only the original six images/source attachments may be renamed');
+  await mkdir('artifacts',{recursive:true});
   await mkdir(beforeDir,{recursive:false});
   await writeFile(beforeDir+'/release.json',JSON.stringify(release,null,2));await writeFile(beforeDir+'/tag.json',JSON.stringify(tag,null,2));
   // gh downloads only this release's six public deployment files, never business data.
