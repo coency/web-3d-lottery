@@ -252,7 +252,7 @@ test('package preserves migration bytes and excludes host credentials/data',asyn
   assert.ok(!all.some(file=>['README.md','CLEANUP.md','RELEASE_NOTES.md'].includes(file)));
   const instructions=await readFile(path.join(directory,'INSTALLATION.md'),'utf8');
   assert.match(instructions,/starlit-1\.0\.0-test\.1-source\.tar\.gz/);
-  assert.doesNotMatch(instructions,/starlit-1\.0\.0-rc\.2-images/);
+  assert.doesNotMatch(instructions,/starlit-1\.0\.0-rc\.3-docker/);
   for(const topic of ['首次安装','升级已有网站','微信接入','备份','自动清理','常见问题'])assert.ok(instructions.includes(topic));
   assert.ok(all.includes('source/apps/api/src/activities/wechat-cleanup.service.ts'));
   assert.ok(all.includes('source/apps/web/stage/portrait-cache.js'));
@@ -294,7 +294,7 @@ async function automaticDownloadFixture(kind='source'){
   const f=await fixture(),next=await fixture({configured:false});
   await writeFile(path.join(f.folder,'release.env'),releaseText('1.0.0-rc.5'));
   await writeFile(path.join(next.folder,'release.env'),releaseText('1.0.0-rc.6'));
-  if(kind==='images'){
+  if(['images','docker'].includes(kind)){
     await writeFile(path.join(next.folder,'images.tar'),'mock image archive');
     await writeFile(path.join(next.folder,'release.env'),releaseText('1.0.0-rc.6')+'BUNDLE_KIND=images\n');
   }
@@ -517,4 +517,42 @@ shellTest('cleanup skips nested mounts and never cleans an unknown previous vers
   await mkdir(path.join(empty.folder,'releases/1.0.0-rc.1'),{recursive:true});
   const result=execute(empty,['cleanup','--apply'],{env:cleanEnv,input:'CLEAN\n'});success(result);assert.match(result.stdout,/无法确认/);
   assert.ok(existsSync(path.join(empty.folder,'releases/1.0.0-rc.1')));assert.ok(!(await log(empty)).includes('image rm'));
+});
+
+
+shellTest('old images installation upgrades to docker-named bundle preserving data and cleaning only verified inputs',async()=>{
+ const f=await automaticPackageFixture('docker');
+ await writeFile(path.join(f.folder,'release.env'),releaseText('1.0.0-rc.5')+'BUNDLE_KIND=images\n');
+ await writeFile(path.join(f.folder,'images.tar'),'old images');
+ const unrelated=path.join(f.folder,'downloads/starlit-1.0.0-rc.5-images.tar.gz');await writeFile(unrelated,'keep');
+ success(execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_IMAGE_MISSING:'1'}}));
+ assert.ok(!existsSync(f.archive));assert.ok(!existsSync(f.archive+'.sha256'));assert.ok(!existsSync(f.next.folder));
+ assert.ok(existsSync(unrelated));assert.equal(await readFile(path.join(f.folder,'data/uploads/avatar.txt'),'utf8'),'avatar-data');
+ assert.match(await readFile(path.join(f.folder,'config/app.env'),'utf8'),/preserve-me/);
+ assert.equal((await readdir(path.join(f.folder,'backups'))).length,1);
+ success(execute(f,['start'],{env:{...f.env,MOCK_IMAGE_MISSING:'1'}}));
+ assert.match(await log(f),/releases\/1\.0\.0-rc\.6\/images.tar/);
+});
+shellTest('failed docker-named upgrade keeps the archive, directory and existing data',async()=>{
+ const f=await automaticPackageFixture('docker');
+ const result=execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_MIGRATION_FAIL:'1'}});
+ assert.notEqual(result.status,0);assert.ok(existsSync(f.archive));assert.ok(existsSync(f.next.folder));
+ assert.equal(await readFile(path.join(f.folder,'data/uploads/avatar.txt'),'utf8'),'avatar-data');
+});
+shellTest('manual cleanup accepts a verified docker archive and preserves runtime data',async()=>{
+ const f=await automaticPackageFixture('docker');
+ // Keep upload/extraction for an explicit cleanup after the completed upgrade.
+ success(execute(f,['upgrade',posix(f.next.folder)],{env:{...f.env,MOCK_MOUNT_PATH:posix(f.next.folder),MOCK_DOWNLOADS:posix(path.join(f.folder,'absent'))}}));
+ const external=await mkdtemp(path.join(scratch,'docker-downloads-'));
+ const externalArchive=path.join(external,path.basename(f.archive));await copyFile(f.archive,externalArchive);await copyFile(f.archive+'.sha256',externalArchive+'.sha256');f.archive=externalArchive;
+ const result=execute(f,['cleanup','--package',posix(f.next.folder),'--archive',posix(f.archive),'--apply'],{env:f.env,input:'CLEAN\n'});success(result);
+ assert.ok(!existsSync(f.next.folder));assert.ok(!existsSync(f.archive));
+ assert.equal(await readFile(path.join(f.folder,'data/uploads/avatar.txt'),'utf8'),'avatar-data');
+});
+shellTest('docker delivery remains compatible with existing images-format backups',async()=>{
+ const f=await fixture();const release=releaseText('1.0.0-rc.6')+'BUNDLE_KIND=images\n';
+ await writeFile(path.join(f.folder,'release.env'),release);await writeFile(path.join(f.folder,'images.tar'),'payload');
+ success(execute(f,['backup']));const saved=path.join(f.folder,'backups',(await readdir(path.join(f.folder,'backups')))[0]);
+ const fresh=await fixture({configured:false});await writeFile(path.join(fresh.folder,'release.env'),release);await writeFile(path.join(fresh.folder,'images.tar'),'payload');
+ success(execute(fresh,['restore',posix(saved)]));assert.equal(await readFile(path.join(fresh.folder,'data/uploads/avatar.txt'),'utf8'),'avatar-data');
 });

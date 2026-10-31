@@ -21,9 +21,9 @@
 | 部署方式 | 下载文件 | 服务器上的处理方式 |
 | --- | --- | --- |
 | 源码部署包 | `starlit-版本-source.tar.gz` | 下载基础镜像及 npm 依赖，在服务器构建应用 |
-| Docker 镜像部署包 | `starlit-版本-images.tar.gz` | 导入包内镜像，无需现场编译 |
+| Docker 镜像部署包 | `starlit-版本-docker.tar.gz` | 导入包内镜像，无需现场编译 |
 
-同时下载压缩包的同名 `.sha256` 文件，以及对应的 `SOURCE_INSTALLATION.md` 或 `IMAGES_INSTALLATION.md`。按说明逐步安装，**两种部署包任选一种**。
+同时下载压缩包的同名 `.sha256` 文件，以及对应的 `SOURCE_INSTALLATION.md` 或 `DOCKER_INSTALLATION.md`。按说明逐步安装，**两种部署包任选一种**。
 
 支持 Ubuntu 22.04 / 24.04、Debian 12 / 13，Linux x86_64 架构。两种包都会自动安装缺少的 Docker Engine 和 Compose。需准备可访问的域名并放行 TCP 80、443；安装 Docker、申请 HTTPS 证书和微信接入仍需联网。
 

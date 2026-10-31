@@ -66,10 +66,11 @@ export function imageBuildPlan({imageTag,dockerfile,context,registry='public.ecr
   if(pull!==postgres)commands.push(['tag',pull,postgres]);
   return commands;
 }
+export const bundleSuffix=kind=>kind==='images'?'docker':kind;
 export async function prepareBundle(outputParent,{version,includeImages=false}={}){
   validateVersion(version);
   const kind=includeImages?'images':'source';
-  const directory=path.join(outputParent,`starlit-${version}-${kind}`);
+  const directory=path.join(outputParent,`starlit-${version}-${bundleSuffix(kind)}`);
   // Never overwrite an existing bundle: it could contain a live installation.
   await mkdir(directory,{recursive:false});
   const copy=async(relative,destination)=>{
@@ -77,7 +78,7 @@ export async function prepareBundle(outputParent,{version,includeImages=false}={
     if(!(await lstat(source)).isFile())throw new Error(`只允许普通文件：${relative}`);
     await mkdir(path.dirname(destination),{recursive:true});
     if(relative.endsWith('.sh'))await writeFile(destination,(await readFile(source,'utf8')).replace(/\r\n/g,'\n'));
-    else if(relative.startsWith('docs/'))await writeFile(destination,(await readFile(source,'utf8')).replaceAll('starlit-1.0.0-rc.2-images',`starlit-${version}-${kind}`).replaceAll('(部署说明.md)','(INSTALLATION.md)'));
+    else if(relative.startsWith('docs/'))await writeFile(destination,(await readFile(source,'utf8')).replaceAll('starlit-1.0.0-rc.3-docker',`starlit-${version}-${bundleSuffix(kind)}`).replaceAll('(部署说明.md)','(INSTALLATION.md)'));
     else await copyFile(source,destination);
   };
   for(const file of deployFiles)await copy(`deploy/container/${file}`,path.join(directory,file));

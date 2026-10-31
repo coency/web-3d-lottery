@@ -53,11 +53,11 @@ jobs:
           for(const record of [sourceRecord,imageRecord]){
             for(const file of [record.archive,record.archive+'.sha256'])await copyFile(file,path.join('artifacts/delivery',path.basename(file)));
             const bundle=record.archive.replace(/\.tar\.gz$/,'');
-            await copyFile(path.join(bundle,'INSTALLATION.md'),`artifacts/delivery/${record.kind.toUpperCase()}_INSTALLATION.md`);
+            await copyFile(path.join(bundle,'INSTALLATION.md'),`artifacts/delivery/${record.kind==='images'?'DOCKER':'SOURCE'}_INSTALLATION.md`);
           }
           const summary=(process.env.RELEASE_NOTES||'').trim();
           const url=`https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/v${v}`;
-          const table=['| 类型 | 部署压缩包 | 操作说明 |','| --- | --- | --- |',`| 源码部署包 | [starlit-${v}-source.tar.gz](${url}/starlit-${v}-source.tar.gz) | [源码版安装说明](${url}/SOURCE_INSTALLATION.md) |`,`| Docker 镜像部署包 | [starlit-${v}-images.tar.gz](${url}/starlit-${v}-images.tar.gz) | [镜像版安装说明](${url}/IMAGES_INSTALLATION.md) |`].join('\n');
+          const table=['| 类型 | 部署压缩包 | 操作说明 |','| --- | --- | --- |',`| 源码部署包 | [starlit-${v}-source.tar.gz](${url}/starlit-${v}-source.tar.gz) | [源码版安装说明](${url}/SOURCE_INSTALLATION.md) |`,`| Docker 镜像部署包 | [starlit-${v}-docker.tar.gz](${url}/starlit-${v}-docker.tar.gz) | [镜像版安装说明](${url}/DOCKER_INSTALLATION.md) |`].join('\n');
           const notes=['同一功能版本提供两种部署包，任选一种，不需要同时安装。',table,summary,'- 源码版：包较小，在服务器下载依赖并构建应用。\n- 镜像版：包含应用、网关和 PostgreSQL 的 Linux amd64 镜像，服务器直接导入，无需现场编译。\n- 两种包均自动安装缺少的 Docker Engine 和 Compose；升级前备份，升级成功后自动删除本次上传包、校验文件和新解压目录，保留运行数据及备份。\n- 不包含开发电脑的账号、活动、数据库、上传文件或微信密钥。','下载选中压缩包的同名 `.sha256` 文件，并按对应说明操作。不要将 GitHub 自动提供的 `Source code (zip/tar.gz)` 当作部署包。','两种包来自同一份源码，共用本次完整发布验收结果；镜像包另通过实际导入和容器运行检查。验收信息保存在包内 `RELEASE.json`，公网 HTTPS 和真实手机微信仍需实际服务器验证。','源码包 SHA256：`'+sourceRecord.sha256+'`','镜像包 SHA256：`'+imageRecord.sha256+'`'].filter(Boolean).join('\n\n');
           await writeFile('artifacts/delivery/RELEASE_BODY.md',notes+'\n');
           JS

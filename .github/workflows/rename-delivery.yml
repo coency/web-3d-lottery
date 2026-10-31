@@ -1,0 +1,58 @@
+name: Rename existing deployment delivery to docker
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing images/source release version to rename (without v)
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: image-release
+  cancel-in-progress: false
+jobs:
+  rename:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      CHROME_PATH: /usr/bin/google-chrome
+      RELEASE_IMAGE_REGISTRY: docker.io/library
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Verify and retain existing delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/rename-release-delivery.mjs prepare
+      - name: Preserve original delivery before any replacement
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-delivery-${{ inputs.version }}
+          path: artifacts/delivery-before/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+      - run: npm ci --no-audit --no-fund
+      - name: Run complete release gate and build both bundles
+        run: npm run package:deploy -- --version="$RELEASE_VERSION" --both
+      - name: Verify unchanged application and replace delivery names
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/rename-release-delivery.mjs publish
+      - name: Retain delivery metadata and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rename-delivery-diagnostics
+          path: |
+            artifacts/delivery-before/*.json
+            artifacts/delivery-renamed/release.json
+            artifacts/releases/*.json
+            artifacts/release-check-*/verification.json
+            artifacts/release-check-*/FAILED.txt
+            artifacts/image-smoke.json
+          if-no-files-found: ignore

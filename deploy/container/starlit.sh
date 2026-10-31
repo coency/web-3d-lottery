@@ -14,6 +14,11 @@ bundle_kind(){
   [[ $kind == source || $kind == images ]] || die '部署包类型无效。'
   printf '%s' "$kind"
 }
+# Accept the historical images suffix as well as the public docker name.
+package_matches(){
+  local actual=$1 version=$2 kind=$3 extension=${4:-}
+  [[ $actual == "starlit-$version-$kind$extension" || ( $kind == images && $actual == "starlit-$version-docker$extension" ) ]]
+}
 current_kind(){
   if [[ -f "$base/releases/$1/release.env" ]]; then bundle_kind "$base/releases/$1";
   else bundle_kind "$base"; fi
@@ -247,7 +252,7 @@ upgrade_package(){
   kind=$(current_kind "$current")
   if ! (
     # Only the explicit upgrade input, outside the live installation, is disposable.
-    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-$kind" ]] || exit 1
+    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(package_matches "$(basename -- "$package")" "$current" "$kind" && echo yes) == yes ]] || exit 1
     [[ ! -e "$package/config" && ! -e "$package/data" ]] || exit 1
     cleanup_tree "$package" && cleanup_tree "$base/releases/$current" || exit 1
     diff -qr -- "$package" "$base/releases/$current" >/dev/null || exit 1
@@ -259,8 +264,13 @@ upgrade_package(){
   fi
 }
 upgrade_downloads(){
-  local current=$1 archive kind hash
+  local current=$1 kind
   kind=$(current_kind "$current")
+  upgrade_download "$current" "$kind"
+  if [[ $kind == images ]]; then upgrade_download "$current" docker; fi
+}
+upgrade_download(){
+  local current=$1 kind=$2 archive hash
   archive="/root/starlit-$current-$kind.tar.gz"
   if [[ ! -e "$archive" && ! -L "$archive" && ! -e "$archive.sha256" && ! -L "$archive.sha256" ]]; then return 0; fi
   if ! (
@@ -304,6 +314,7 @@ cleanup(){
   if (( downloads )); then
     [[ -z "$archive" ]] || die '--downloads 与 --archive 只能选择一种。'
     archive="/root/starlit-$current-$kind.tar.gz"
+    if [[ $kind == images && ! -e "$archive" && ! -L "$archive" && ! -e "$archive.sha256" && ! -L "$archive.sha256" ]]; then archive="/root/starlit-$current-docker.tar.gz"; fi
     if [[ ! -e "$archive" && ! -L "$archive" && ! -e "$archive.sha256" && ! -L "$archive.sha256" ]]; then
       echo "未找到本次下载文件，跳过：$archive"; archive=''
     fi
@@ -346,13 +357,13 @@ cleanup(){
     else echo "保留异常版本目录：$folder"; fi
   done < <(if [[ -d "$base/releases" ]]; then find "$base/releases" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort; fi)
   if [[ -n "$package" ]]; then
-    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(basename -- "$package") == "starlit-$current-$kind" && ! -e "$package/config" && ! -e "$package/data" ]] || die '只接受安装目录之外、本次版本的新解压部署包。'
+    [[ $package != "$base" && $package != "$base"/* && $base != "$package"/* && $(package_matches "$(basename -- "$package")" "$current" "$kind" && echo yes) == yes && ! -e "$package/config" && ! -e "$package/data" ]] || die '只接受安装目录之外、本次版本的新解压部署包。'
     cleanup_tree "$package" && cleanup_tree "$base/releases/$current" || die '源码包或内部副本不完整，拒绝删除。'
     diff -qr -- "$package" "$base/releases/$current" >/dev/null || die '外部源码包与当前内部副本不一致，拒绝删除。'
     remove_dirs+=("$package")
   fi
   if [[ -n "$archive" ]]; then
-    [[ $archive != "$base"/* && $(basename -- "$archive") == "starlit-$current-$kind.tar.gz" && -f "$archive" && ! -L "$archive" && $(realpath -e -- "$archive") == "$archive" && -f "$archive.sha256" && ! -L "$archive.sha256" ]] || die '只接受安装目录外、本次版本的压缩包及校验文件。'
+    [[ $archive != "$base"/* && $(package_matches "$(basename -- "$archive")" "$current" "$kind" .tar.gz && echo yes) == yes && -f "$archive" && ! -L "$archive" && $(realpath -e -- "$archive") == "$archive" && -f "$archive.sha256" && ! -L "$archive.sha256" ]] || die '只接受安装目录外、本次版本的压缩包及校验文件。'
     cleanup_archive_source "$current" || die '当前版本源码未通过校验，拒绝清理下载包。'
     hash=$(sha256sum -- "$archive"); hash=${hash%% *}
     [[ $(cat -- "$archive.sha256") == "$hash  $(basename -- "$archive")" ]] || die '压缩包校验不通过，保留文件以便排查。'

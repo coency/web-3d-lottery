@@ -26,7 +26,7 @@ test('legacy packaging CLI reaches the gate without an async import deadlock',()
 });
 
 test('paired packaging cannot be combined with check-only or image-only options',()=>{
- for(const args of [['--both','--check'],['--both','--images','--version=1.0.0-rc.3']]){
+ for(const args of [['--both','--check'],['--both','--images','--version=1.0.0-rc.3'],['--both','--docker','--version=1.0.0-rc.3'],['--images','--docker','--version=1.0.0-rc.3']]){
   const result=spawnSync(process.execPath,[fileURLToPath(new URL('../scripts/release.mjs',import.meta.url)),...args],{encoding:'utf8',timeout:10000,windowsHide:true});
   assert.equal(result.error,undefined);assert.equal(result.status,1);assert.match(result.stderr,/用法/);
  }
@@ -58,4 +58,19 @@ test('release image mirror keeps pinned versions, amd64 and the installed databa
  assert.deepEqual(mirror[2],['pull','--platform','linux/amd64','docker.io/library/postgres:18.6-bookworm']);
  assert.deepEqual(mirror[3],['tag','docker.io/library/postgres:18.6-bookworm',defaults[2].at(-1)]);
  assert.throws(()=>imageBuildPlan({...options,registry:'untrusted.example'}));
+});
+
+
+test('public Docker delivery naming retains the internal images kind for installed-site compatibility',async()=>{
+ const {bundleSuffix}=await import('../scripts/package-deploy.mjs');
+ assert.equal(bundleSuffix('images'),'docker');assert.equal(bundleSuffix('source'),'source');
+});
+
+
+test('same-version naming delivery replaces exactly six attachments and rejects unsafe versions',async()=>{
+ const {deliveryNames}=await import('../scripts/rename-release-delivery.mjs');
+ const before=deliveryNames('1.0.0-rc.3'),after=deliveryNames('1.0.0-rc.3',true);
+ assert.equal(after.length,6);assert(after.includes('starlit-1.0.0-rc.3-docker.tar.gz.sha256'));assert(after.includes('DOCKER_INSTALLATION.md'));
+ assert(before.includes('IMAGES_INSTALLATION.md'));assert.deepEqual(before.filter(n=>n.includes('source')||n.startsWith('SOURCE')),after.filter(n=>n.includes('source')||n.startsWith('SOURCE')));
+ assert.throws(()=>deliveryNames('../escape',true));
 });

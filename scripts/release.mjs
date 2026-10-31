@@ -23,9 +23,9 @@ function execute(command,name){
  });
 }
 export async function release(args){
- const checkOnly=args.includes('--check'),both=args.includes('--both'),includeImages=both||args.includes('--images');
+ const checkOnly=args.includes('--check'),both=args.includes('--both'),includeImages=both||args.includes('--docker')||args.includes('--images');
  const versions=args.filter(a=>a.startsWith('--version='));
- if(args.some(a=>!['--check','--images','--both'].includes(a)&&!a.startsWith('--version='))||versions.length>1||both&&args.includes('--images')||checkOnly&&(versions.length||includeImages))throw new Error('用法：npm run release:check，或 npm run package:deploy -- --version=1.0.0-rc.3 [--images | --both]');
+ if(args.some(a=>!['--check','--docker','--images','--both'].includes(a)&&!a.startsWith('--version='))||versions.length>1||both&&(args.includes('--docker')||args.includes('--images'))||args.includes('--docker')&&args.includes('--images')||checkOnly&&(versions.length||includeImages))throw new Error('用法：npm run release:check，或 npm run package:deploy -- --version=1.0.0-rc.3 [--docker | --both]');
  const version=checkOnly?null:validateVersion(versions[0]?.slice(10));
  const parent=path.join(root,'artifacts');await mkdir(parent,{recursive:true});
  // Serialize publication and prevent accidentally reusing a release identity.
@@ -40,7 +40,7 @@ export async function release(args){
   if(version)for(const entry of await readdir(parent,{withFileTypes:true})){
    if(entry.isDirectory()&&entry.name.startsWith('deploy-')){
     const names=await readdir(path.join(parent,entry.name));
-    if(names.some(name=>name===`starlit-${version}-source.tar.gz`||name===`starlit-${version}-images.tar.gz`))throw new Error('已存在此版本的部署包，请使用新的版本号。');
+    if(names.some(name=>name===`starlit-${version}-source.tar.gz`||name===`starlit-${version}-images.tar.gz`||name===`starlit-${version}-docker.tar.gz`))throw new Error('已存在此版本的部署包，请使用新的版本号。');
    }
   }
   work=await mkdtemp(path.join(parent,'release-check-'));
